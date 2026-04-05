@@ -45,6 +45,9 @@ CREATE TABLE documents (
     content TEXT,
     tags TEXT[] DEFAULT '{}' NOT NULL,
     url TEXT,
+    date TEXT,
+    metadata JSONB,
+    error_message TEXT,
     version INTEGER DEFAULT 0 NOT NULL,
     archived BOOLEAN DEFAULT false NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
@@ -60,17 +63,36 @@ CREATE TABLE document_pages (
     UNIQUE(document_id, page)
 );
 
+CREATE TABLE document_chunks (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id),
+    knowledge_base_id UUID NOT NULL REFERENCES knowledge_bases(id) ON DELETE CASCADE,
+    chunk_index INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    page INTEGER,
+    start_char INTEGER,
+    token_count INTEGER NOT NULL,
+    header_breadcrumb TEXT,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    UNIQUE(document_id, chunk_index)
+);
+
 CREATE INDEX idx_documents_knowledge_base_id ON documents(knowledge_base_id);
 CREATE INDEX idx_documents_user_id ON documents(user_id);
 CREATE INDEX idx_documents_tags ON documents USING GIN(tags);
 CREATE INDEX idx_documents_kb_path ON documents(knowledge_base_id, path);
 CREATE INDEX idx_documents_kb_status ON documents(knowledge_base_id, status) WHERE NOT archived;
+CREATE INDEX idx_documents_date ON documents(date) WHERE date IS NOT NULL;
 CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
+CREATE INDEX idx_chunks_kb ON document_chunks(knowledge_base_id);
+CREATE INDEX idx_chunks_doc ON document_chunks(document_id);
 
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_bases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE document_chunks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE document_pages ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY users_select ON users
@@ -96,6 +118,9 @@ CREATE POLICY document_pages_all ON document_pages
               AND documents.user_id = auth.uid()
         )
     );
+
+CREATE POLICY document_chunks_all ON document_chunks
+    FOR ALL USING (user_id = auth.uid());
 
 CREATE OR REPLACE FUNCTION generate_slug(name TEXT, p_user_id UUID)
 RETURNS TEXT

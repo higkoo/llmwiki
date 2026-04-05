@@ -343,6 +343,7 @@ interface NoteEditorProps {
   onTitleChange?: (title: string) => void
   backLabel?: string
   onBack?: () => void
+  embedded?: boolean
 }
 
 async function getAccessToken(): Promise<string | null> {
@@ -361,6 +362,7 @@ export function NoteEditor({
   onTitleChange,
   backLabel,
   onBack,
+  embedded,
 }: NoteEditorProps) {
   const [title, setTitle] = React.useState(initialTitle ?? '')
   const [date, setDate] = React.useState<string>(initialDate ?? '')
@@ -373,6 +375,7 @@ export function NoteEditor({
   const [calendarOpen, setCalendarOpen] = React.useState(false)
   const [saveStatus, setSaveStatus] = React.useState<'saved' | 'saving' | 'idle'>('idle')
   const [wordCount, setWordCount] = React.useState(0)
+  const [metaExpanded, setMetaExpanded] = React.useState(false)
   const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestContentRef = React.useRef<string>('')
   const frontmatterRef = React.useRef<string>('')
@@ -408,7 +411,7 @@ export function NoteEditor({
     ],
     editorProps: {
       attributes: {
-        class: 'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[200px]',
+        class: 'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[calc(100vh-200px)] cursor-text',
       },
       handleClick: (_view, _pos, event) => {
         const anchor = (event.target as HTMLElement).closest('a')
@@ -537,6 +540,7 @@ export function NoteEditor({
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
       if (dirtyRef.current) {
+        const frontmatter = frontmatterRef.current
         const contentToSave = latestContentRef.current
         const titleToSave = latestTitleRef.current
         const tagsToSave = latestTagsRef.current
@@ -553,7 +557,7 @@ export function NoteEditor({
             const promises: Promise<unknown>[] = [
               apiFetch(`/v1/documents/${docId}/content`, token, {
                 method: 'PUT',
-                body: JSON.stringify({ content: contentToSave }),
+                body: JSON.stringify({ content: frontmatter + contentToSave }),
               }),
             ]
 
@@ -655,6 +659,7 @@ export function NoteEditor({
     setProperties(next)
     latestPropertiesRef.current = next
     dirtyRef.current = true
+    metaDirtyRef.current = true
     setSaveStatus('idle')
     scheduleSave()
   }
@@ -668,6 +673,7 @@ export function NoteEditor({
     setProperties(next)
     latestPropertiesRef.current = next
     dirtyRef.current = true
+    metaDirtyRef.current = true
     scheduleSave()
   }
 
@@ -679,6 +685,7 @@ export function NoteEditor({
     setProperties(next)
     latestPropertiesRef.current = next
     dirtyRef.current = true
+    metaDirtyRef.current = true
     scheduleSave()
   }
 
@@ -688,6 +695,7 @@ export function NoteEditor({
     setProperties(next)
     latestPropertiesRef.current = next
     dirtyRef.current = true
+    metaDirtyRef.current = true
     scheduleSave()
   }
 
@@ -698,6 +706,7 @@ export function NoteEditor({
     setProperties(next)
     latestPropertiesRef.current = next
     dirtyRef.current = true
+    metaDirtyRef.current = true
     scheduleSave()
   }
 
@@ -707,20 +716,60 @@ export function NoteEditor({
         editor={editor}
         backLabel={backLabel ?? 'Back'}
         noteTitle={title}
+        onTitleChange={embedded ? (val: string) => {
+          const sanitized = sanitizeTitle(val)
+          setTitle(sanitized)
+          latestTitleRef.current = sanitized
+          dirtyRef.current = true
+          metaDirtyRef.current = true
+          setSaveStatus('idle')
+          scheduleSave()
+          onTitleChange?.(sanitized)
+        } : undefined}
         onBack={onBack ?? (() => {})}
+        embedded={embedded}
       />
 
-      <div className="flex-1 overflow-y-auto bg-background px-6">
-        <div className="max-w-4xl mx-auto px-20 py-12 bg-card rounded-2xl border border-border/40 shadow-sm mb-6 min-h-[calc(100%-1.5rem)]">
-          <input
-            type="text"
-            value={title}
-            onChange={handleTitleChange}
-            placeholder="Untitled"
-            className="w-full text-2xl font-bold text-foreground bg-transparent border-none outline-none placeholder:text-muted-foreground/30 mb-4"
-          />
+      <div className={cn(
+        'flex-1 overflow-y-auto',
+        embedded ? '' : 'bg-background px-6',
+      )}>
+        <div className={cn(
+          embedded
+            ? 'max-w-3xl mx-auto px-8 py-10'
+            : 'max-w-4xl mx-auto px-20 py-12 bg-card rounded-2xl border border-border/40 shadow-sm mb-6 min-h-[calc(100%-1.5rem)]',
+        )}>
+          {!embedded && (
+            <input
+              type="text"
+              value={title}
+              onChange={handleTitleChange}
+              placeholder="Untitled"
+              className="w-full text-2xl font-bold text-foreground bg-transparent border-none outline-none placeholder:text-muted-foreground/30 mb-4"
+            />
+          )}
 
-          <div className="mb-6 space-y-0.5">
+          {!metaExpanded && (tags.length > 0 || date) && (
+            <button
+              onClick={() => setMetaExpanded(true)}
+              className="flex items-center gap-2 mb-4 text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors cursor-pointer"
+            >
+              {date && <span className="bg-muted px-1.5 py-0.5 rounded text-[11px]">{date}</span>}
+              {tags.length > 0 && (
+                <span className="bg-muted px-1.5 py-0.5 rounded text-[11px]">{tags.length} tag{tags.length !== 1 ? 's' : ''}</span>
+              )}
+            </button>
+          )}
+          {!metaExpanded && !tags.length && !date && (
+            <button
+              onClick={() => setMetaExpanded(true)}
+              className="flex items-center gap-1.5 mb-4 text-xs text-muted-foreground/30 hover:text-muted-foreground transition-colors cursor-pointer"
+            >
+              <Plus className="size-3" />
+              Add metadata
+            </button>
+          )}
+          {metaExpanded && <div className="mb-6 space-y-0.5">
             <div className="flex items-center h-8">
               <div className="flex items-center gap-2 w-24 shrink-0">
                 <CalendarIcon className="size-3.5 text-muted-foreground" />
@@ -827,13 +876,24 @@ export function NoteEditor({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
+
+            <button
+              onClick={() => setMetaExpanded(false)}
+              className="flex items-center gap-1.5 h-7 text-sm text-muted-foreground/30 hover:text-muted-foreground transition-colors cursor-pointer"
+            >
+              <ChevronUp className="size-3.5" />
+              <span>Collapse</span>
+            </button>
+          </div>}
 
           <EditorContent editor={editor} />
         </div>
       </div>
 
-      <div className="shrink-0 flex items-center justify-end px-5 py-1.5 bg-background">
+      <div className={cn(
+        'shrink-0 flex items-center justify-end py-1.5',
+        embedded ? 'px-4 border-t border-border' : 'px-5 bg-background',
+      )}>
         <span className="text-[10px] text-muted-foreground mr-3">
           {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : ''}
         </span>

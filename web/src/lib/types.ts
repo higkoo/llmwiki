@@ -4,6 +4,8 @@ export interface KnowledgeBase {
   name: string
   slug: string
   description: string | null
+  source_count: number
+  wiki_page_count: number
   created_at: string
   updated_at: string
 }
@@ -21,6 +23,9 @@ export interface Document {
   page_count: number | null
   content: string | null
   tags: string[]
+  date: string | null
+  metadata: Record<string, unknown> | null
+  error_message: string | null
   url: string | null
   version: number
   document_number: number | null

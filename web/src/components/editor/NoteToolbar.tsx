@@ -4,7 +4,12 @@ import * as React from 'react'
 import {
   Bold, Italic, Heading2, List, ListOrdered, LinkIcon,
   Table2, Undo2, Redo2, ChevronLeft, ChevronRight,
+  Rows3, Columns3, Trash2,
 } from 'lucide-react'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuTrigger, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import type { Editor } from '@tiptap/react'
@@ -13,10 +18,12 @@ interface NoteToolbarProps {
   editor: Editor | null
   backLabel: string
   noteTitle: string
+  onTitleChange?: (title: string) => void
   onBack: () => void
+  embedded?: boolean
 }
 
-export function NoteToolbar({ editor, backLabel, noteTitle, onBack }: NoteToolbarProps) {
+export function NoteToolbar({ editor, backLabel, noteTitle, onTitleChange, onBack, embedded }: NoteToolbarProps) {
   const [linkOpen, setLinkOpen] = React.useState(false)
   const [linkUrl, setLinkUrl] = React.useState('')
 
@@ -30,32 +37,49 @@ export function NoteToolbar({ editor, backLabel, noteTitle, onBack }: NoteToolba
   }
 
   return (
-    <div className="flex items-center gap-1.5 px-5 py-4 shrink-0 bg-background">
-      <button
-        onClick={onBack}
-        className="p-1 rounded transition-colors hover:bg-accent cursor-pointer text-foreground"
-      >
-        <ChevronLeft className="size-4" />
-      </button>
-      <button
-        disabled
-        className="p-1 rounded transition-colors text-muted-foreground/30 cursor-default"
-      >
-        <ChevronRight className="size-4" />
-      </button>
+    <div className={cn(
+      'flex items-center gap-1.5 shrink-0',
+      embedded ? 'px-4 py-2 border-b border-border' : 'px-5 py-4 bg-background',
+    )}>
+      {!embedded && (
+        <>
+          <button
+            onClick={onBack}
+            className="p-1 rounded transition-colors hover:bg-accent cursor-pointer text-foreground"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+          <button
+            disabled
+            className="p-1 rounded transition-colors text-muted-foreground/30 cursor-default"
+          >
+            <ChevronRight className="size-4" />
+          </button>
 
-      <nav className="flex items-center gap-1 text-sm min-w-0 mr-auto overflow-hidden">
-        <button
-          onClick={onBack}
-          className="px-1.5 py-0.5 rounded transition-colors cursor-pointer truncate text-muted-foreground hover:text-foreground hover:bg-accent"
-        >
-          {backLabel}
-        </button>
-        <span className="text-muted-foreground/40">/</span>
-        <span className="px-1.5 py-0.5 text-foreground font-medium truncate">
-          {noteTitle || 'Untitled'}
-        </span>
-      </nav>
+          <nav className="flex items-center gap-1 text-sm min-w-0 mr-auto overflow-hidden">
+            <button
+              onClick={onBack}
+              className="px-1.5 py-0.5 rounded transition-colors cursor-pointer truncate text-muted-foreground hover:text-foreground hover:bg-accent"
+            >
+              {backLabel}
+            </button>
+            <span className="text-muted-foreground/40">/</span>
+            <span className="px-1.5 py-0.5 text-foreground font-medium truncate">
+              {noteTitle || 'Untitled'}
+            </span>
+          </nav>
+        </>
+      )}
+
+      {embedded && (
+        <input
+          type="text"
+          value={noteTitle}
+          onChange={(e) => onTitleChange?.(e.target.value)}
+          placeholder="Untitled"
+          className="flex-1 min-w-0 text-sm font-medium text-foreground bg-transparent border-none outline-none placeholder:text-muted-foreground/30 mr-2"
+        />
+      )}
 
       <div className="flex items-center gap-0.5">
         <ToolbarButton
@@ -164,12 +188,50 @@ export function NoteToolbar({ editor, backLabel, noteTitle, onBack }: NoteToolba
 
         <div className="w-px h-4 bg-border mx-1" />
 
-        <ToolbarButton
-          onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
-          title="Insert Table"
-        >
-          <Table2 className="size-3.5" />
-        </ToolbarButton>
+        {editor?.isActive('table') ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                title="Table options"
+                className="p-1.5 rounded-md transition-colors cursor-pointer bg-accent text-foreground"
+              >
+                <Table2 className="size-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => editor.chain().focus().addRowAfter().run()}>
+                <Rows3 className="size-3.5 mr-2" />
+                Add Row Below
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => editor.chain().focus().addColumnAfter().run()}>
+                <Columns3 className="size-3.5 mr-2" />
+                Add Column Right
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => editor.chain().focus().deleteRow().run()}>
+                Delete Row
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => editor.chain().focus().deleteColumn().run()}>
+                Delete Column
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => editor.chain().focus().deleteTable().run()}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="size-3.5 mr-2" />
+                Delete Table
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <ToolbarButton
+            onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+            title="Insert Table"
+          >
+            <Table2 className="size-3.5" />
+          </ToolbarButton>
+        )}
       </div>
     </div>
   )

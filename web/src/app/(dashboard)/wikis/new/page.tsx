@@ -22,19 +22,19 @@ export default function NewKnowledgeBasePage() {
     setError('')
 
     try {
-      const kb = await createKB(trimmed)
-      router.push(`/kb/${kb.slug}`)
+      const kb = await createKB(trimmed, description.trim() || undefined)
+      router.push(`/wikis/${kb.slug}`)
     } catch (err) {
-      setError((err as Error).message || 'Failed to create knowledge base')
+      setError((err as Error).message || 'Failed to create wiki')
       setLoading(false)
     }
   }
 
   return (
     <div className="max-w-md mx-auto p-8">
-      <h1 className="text-xl font-semibold tracking-tight">Create Knowledge Base</h1>
+      <h1 className="text-xl font-semibold tracking-tight">Create Wiki</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        A knowledge base is a collection of documents that Claude can search and reference.
+        A wiki is an LLM-maintained knowledge base compiled from your raw sources.
       </p>
 
       <form onSubmit={handleCreate} className="mt-6 space-y-4">

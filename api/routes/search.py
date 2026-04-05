@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from deps import get_scoped_db
@@ -25,4 +25,4 @@ async def search_knowledge_base(
     body: SearchRequest,
     db: Annotated[ScopedDB, Depends(get_scoped_db)],
 ):
-    return SearchResult(results=[])
+    raise HTTPException(status_code=501, detail="Search not yet implemented")

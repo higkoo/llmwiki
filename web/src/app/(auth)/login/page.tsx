@@ -22,7 +22,7 @@ export default function LoginPage() {
       setError(error.message)
       setLoading(false)
     } else {
-      router.push('/kb')
+      router.push('/wikis')
       router.refresh()
     }
   }

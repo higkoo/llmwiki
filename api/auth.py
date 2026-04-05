@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import time
 
 import asyncpg
 import httpx
@@ -12,10 +13,13 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 _jwks_cache: dict[str, PyJWK] = {}
+_jwks_last_fetch: float = 0
+_JWKS_REFRESH_INTERVAL = 300  # seconds
 
 
 async def _fetch_jwks() -> None:
     """Fetch JWKS from Supabase and cache the signing keys."""
+    global _jwks_last_fetch
     if not settings.SUPABASE_URL:
         return
     url = f"{settings.SUPABASE_URL}/auth/v1/.well-known/jwks.json"
@@ -28,6 +32,7 @@ async def _fetch_jwks() -> None:
         kid = key_data.get("kid")
         if kid:
             _jwks_cache[kid] = PyJWK(key_data)
+    _jwks_last_fetch = time.monotonic()
     logger.info("Fetched %d JWKS keys from Supabase", len(_jwks_cache))
 
 
@@ -80,6 +85,8 @@ async def _try_jwt_jwks(token: str) -> str | None:
             return None
 
         if kid not in _jwks_cache:
+            if time.monotonic() - _jwks_last_fetch < _JWKS_REFRESH_INTERVAL:
+                return None
             await _fetch_jwks()
 
         jwk = _jwks_cache.get(kid)
@@ -101,7 +108,9 @@ async def _try_jwt_jwks(token: str) -> str | None:
 async def _try_api_key(token: str, pool: asyncpg.Pool) -> str | None:
     key_hash = hashlib.sha256(token.encode()).hexdigest()
     row = await pool.fetchrow(
-        "SELECT user_id FROM api_keys WHERE key_hash = $1 AND revoked_at IS NULL",
+        "UPDATE api_keys SET last_used_at = now() "
+        "WHERE key_hash = $1 AND revoked_at IS NULL "
+        "RETURNING user_id",
         key_hash,
     )
     if row:

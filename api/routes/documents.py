@@ -1,10 +1,11 @@
+import json
 import re
 from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
 import yaml
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from deps import get_scoped_db
@@ -52,6 +53,8 @@ class UpdateMetadata(BaseModel):
     path: str | None = None
     title: str | None = None
     tags: list[str] | None = None
+    date: str | None = None
+    metadata: dict | None = None
 
 
 class DocumentOut(BaseModel):
@@ -64,6 +67,9 @@ class DocumentOut(BaseModel):
     file_type: str
     status: str
     tags: list[str]
+    date: str | None = None
+    metadata: dict | None = None
+    error_message: str | None = None
     version: int
     document_number: int | None
     archived: bool
@@ -86,7 +92,7 @@ async def list_documents(
     if path:
         rows = await db.fetch(
             "SELECT id, knowledge_base_id, user_id, filename, path, title, "
-            "file_type, status, tags, version, document_number, archived, created_at, updated_at "
+            "file_type, status, tags, date, metadata, error_message, version, document_number, archived, created_at, updated_at "
             "FROM documents WHERE knowledge_base_id = $1 AND archived = false AND path = $2 "
             "ORDER BY filename",
             kb_id,
@@ -95,7 +101,7 @@ async def list_documents(
     else:
         rows = await db.fetch(
             "SELECT id, knowledge_base_id, user_id, filename, path, title, "
-            "file_type, status, tags, version, document_number, archived, created_at, updated_at "
+            "file_type, status, tags, date, metadata, error_message, version, document_number, archived, created_at, updated_at "
             "FROM documents WHERE knowledge_base_id = $1 AND archived = false "
             "ORDER BY filename",
             kb_id,
@@ -128,7 +134,7 @@ async def create_note(
         "file_type, status, content, tags) "
         "VALUES ($1, auth.uid(), $2, $3, $4, 'md', 'ready', $5, $6) "
         "RETURNING id, knowledge_base_id, user_id, filename, path, title, "
-        "file_type, status, tags, version, document_number, archived, created_at, updated_at",
+        "file_type, status, tags, date, metadata, error_message, version, document_number, archived, created_at, updated_at",
         kb_id,
         body.filename,
         body.path,
@@ -146,13 +152,43 @@ async def get_document(
 ):
     row = await db.fetchrow(
         "SELECT id, knowledge_base_id, user_id, filename, path, title, "
-        "file_type, status, tags, version, document_number, archived, created_at, updated_at "
+        "file_type, status, tags, date, metadata, error_message, version, document_number, archived, created_at, updated_at "
         "FROM documents WHERE id = $1",
         doc_id,
     )
     if not row:
         raise HTTPException(status_code=404, detail="Document not found")
     return row
+
+
+@router.get("/v1/documents/{doc_id}/url")
+async def get_document_url(
+    doc_id: UUID,
+    db: Annotated[ScopedDB, Depends(get_scoped_db)],
+    request: Request,
+):
+    row = await db.fetchrow(
+        "SELECT id, user_id, filename, file_type FROM documents WHERE id = $1",
+        doc_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    s3_service = request.app.state.s3_service
+    if not s3_service:
+        raise HTTPException(status_code=501, detail="File storage not configured")
+
+    ext = row["filename"].rsplit(".", 1)[-1].lower() if "." in row["filename"] else row["file_type"]
+    office_types = {"pptx", "ppt", "docx", "doc"}
+    html_types = {"html", "htm"}
+    if ext in office_types:
+        s3_key = f"{row['user_id']}/{row['id']}/converted.pdf"
+    elif ext in html_types:
+        s3_key = f"{row['user_id']}/{row['id']}/tagged.html"
+    else:
+        s3_key = f"{row['user_id']}/{row['id']}/source.{ext}"
+    url = await s3_service.generate_presigned_get(s3_key)
+    return {"url": url}
 
 
 @router.get("/v1/documents/{doc_id}/content", response_model=DocumentContent)
@@ -174,6 +210,7 @@ async def update_document_content(
     doc_id: UUID,
     body: UpdateContent,
     db: Annotated[ScopedDB, Depends(get_scoped_db)],
+    request: Request,
 ):
     row = await db.fetchrow(
         "UPDATE documents SET content = $1, version = version + 1, updated_at = now() "
@@ -184,6 +221,16 @@ async def update_document_content(
     )
     if not row:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    doc_meta = await db.fetchrow(
+        "SELECT user_id::text, knowledge_base_id::text FROM documents WHERE id = $1", doc_id,
+    )
+    if doc_meta and body.content:
+        from services.chunker import chunk_text, store_chunks
+        chunks = chunk_text(body.content)
+        pool = request.app.state.pool
+        await store_chunks(pool, str(doc_id), doc_meta["user_id"], doc_meta["knowledge_base_id"], chunks)
+
     return row
 
 
@@ -213,6 +260,14 @@ async def update_document_metadata(
         updates.append(f"tags = ${idx}")
         params.append(body.tags)
         idx += 1
+    if body.date is not None:
+        updates.append(f"date = ${idx}")
+        params.append(body.date if body.date else None)
+        idx += 1
+    if body.metadata is not None:
+        updates.append(f"metadata = ${idx}")
+        params.append(json.dumps(body.metadata))
+        idx += 1
 
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -224,7 +279,7 @@ async def update_document_metadata(
         f"UPDATE documents SET {', '.join(updates)} "
         f"WHERE id = ${idx} "
         f"RETURNING id, knowledge_base_id, user_id, filename, path, title, "
-        f"file_type, status, tags, version, document_number, archived, created_at, updated_at"
+        f"file_type, status, tags, date, metadata, error_message, version, document_number, archived, created_at, updated_at"
     )
     row = await db.fetchrow(sql, *params)
     if not row:

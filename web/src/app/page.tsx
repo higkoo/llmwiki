@@ -25,7 +25,7 @@ export default function LandingPage() {
   const router = useRouter()
 
   React.useEffect(() => {
-    if (user) router.replace('/kb')
+    if (user) router.replace('/wikis')
   }, [user, router])
 
   return (

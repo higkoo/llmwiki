@@ -106,7 +106,7 @@ export function FolderDocumentList({
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-6">
         <div className="text-center">
-          <p className="text-sm text-muted-foreground">{isRoot ? 'This knowledge base is empty' : 'This folder is empty'}</p>
+          <p className="text-sm text-muted-foreground">{isRoot ? 'This wiki is empty' : 'This folder is empty'}</p>
           <p className="text-xs text-muted-foreground/60 mt-1">Add documents or notes to get started</p>
         </div>
         <div className="flex gap-3">

@@ -8,7 +8,7 @@ type KBState = {
   loading: boolean
   error: string | null
   fetchKBs: () => Promise<KnowledgeBase[]>
-  createKB: (name: string) => Promise<KnowledgeBase>
+  createKB: (name: string, description?: string) => Promise<KnowledgeBase>
   deleteKB: (id: string) => Promise<void>
   renameKB: (id: string, name: string) => Promise<void>
 }
@@ -37,11 +37,11 @@ export const useKBStore = create<KBState>((set, get) => ({
     }
   },
 
-  createKB: async (name: string) => {
+  createKB: async (name: string, description?: string) => {
     const token = getToken()
     const kb = await apiFetch<KnowledgeBase>('/v1/knowledge-bases', token, {
       method: 'POST',
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, description: description || undefined }),
     })
     set({ knowledgeBases: [kb, ...get().knowledgeBases] })
     return kb

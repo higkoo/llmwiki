@@ -11,7 +11,7 @@ export default function CallbackPage() {
     const supabase = createClient();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN") {
-        router.push("/kb");
+        router.push("/wikis");
         router.refresh();
       }
     });

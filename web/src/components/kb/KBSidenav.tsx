@@ -1,0 +1,975 @@
+'use client'
+
+import * as React from 'react'
+import { useRouter } from 'next/navigation'
+import {
+  ChevronRight, FileText, FolderOpen, NotepadText, Folder, Loader2,
+  Upload, BookOpen, ArrowUpRight, Plus, Trash2, Pencil,
+  ChevronsUpDown, Settings, LogOut, Moon, Sun, Search as SearchIcon,
+} from 'lucide-react'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import {
+  Command, CommandDialog, CommandInput, CommandList, CommandItem,
+  CommandEmpty, CommandGroup, CommandSeparator,
+} from '@/components/ui/command'
+import ReactDOM from 'react-dom'
+import { cn } from '@/lib/utils'
+import { useKBStore, useUserStore } from '@/stores'
+import { useTheme } from 'next-themes'
+import { createClient } from '@/lib/supabase/client'
+import type { WikiNode } from '@/components/wiki/WikiSidenav'
+import type { DocumentListItem } from '@/lib/types'
+
+interface SourceNode {
+  type: 'folder' | 'document'
+  name: string
+  doc?: DocumentListItem
+  children?: SourceNode[]
+}
+
+function buildSourceTree(docs: DocumentListItem[]): SourceNode[] {
+  const folders = new Map<string, SourceNode>()
+  const root: SourceNode[] = []
+
+  const getOrCreateFolder = (path: string): SourceNode[] => {
+    if (path === '/') return root
+    if (folders.has(path)) return folders.get(path)!.children!
+
+    const parts = path.replace(/^\//, '').replace(/\/$/, '').split('/')
+    let current = root
+    let accumulated = '/'
+
+    for (const part of parts) {
+      accumulated += part + '/'
+      if (!folders.has(accumulated)) {
+        const folder: SourceNode = {
+          type: 'folder',
+          name: part,
+          children: [],
+        }
+        folders.set(accumulated, folder)
+        current.push(folder)
+      }
+      current = folders.get(accumulated)!.children!
+    }
+    return current
+  }
+
+  for (const doc of docs) {
+    const parent = getOrCreateFolder(doc.path ?? '/')
+    parent.push({
+      type: 'document',
+      name: doc.title || doc.filename,
+      doc,
+    })
+  }
+
+  const sortNodes = (nodes: SourceNode[]) => {
+    nodes.sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'folder' ? -1 : 1
+      return a.name.localeCompare(b.name)
+    })
+    for (const n of nodes) {
+      if (n.children) sortNodes(n.children)
+    }
+  }
+  sortNodes(root)
+  return root
+}
+
+interface KBSidenavProps {
+  kbName: string
+  wikiTree: WikiNode[]
+  wikiActivePath: string | null
+  onWikiNavigate: (path: string) => void
+  sourceDocs: DocumentListItem[]
+  activeSourceDocId: string | null
+  onSourceSelect: (doc: DocumentListItem) => void
+  hasWiki: boolean
+  loading: boolean
+  onCreateNote: () => void
+  onCreateFolder: (name: string) => void
+  onUpload: () => void
+  onDeleteDocument: (id: string) => void
+  onRenameDocument: (id: string, newTitle: string) => void
+  onMoveDocument: (docId: string, targetPath: string) => void
+}
+
+export function KBSidenav({
+  kbName,
+  wikiTree,
+  wikiActivePath,
+  onWikiNavigate,
+  sourceDocs,
+  activeSourceDocId,
+  onSourceSelect,
+  hasWiki,
+  loading,
+  onCreateNote,
+  onCreateFolder,
+  onUpload,
+  onDeleteDocument,
+  onRenameDocument,
+  onMoveDocument,
+}: KBSidenavProps) {
+  const [sourcesExpanded, setSourcesExpanded] = React.useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('llmwiki:sources-expanded') === 'true'
+  })
+
+  const toggleSources = () => {
+    const next = !sourcesExpanded
+    setSourcesExpanded(next)
+    localStorage.setItem('llmwiki:sources-expanded', String(next))
+  }
+
+  const sourceTree = React.useMemo(() => buildSourceTree(sourceDocs), [sourceDocs])
+
+  const [folderDialogOpen, setFolderDialogOpen] = React.useState(false)
+  const [folderName, setFolderName] = React.useState('')
+
+  const handleCreateFolder = () => {
+    if (!folderName.trim()) return
+    onCreateFolder(folderName.trim())
+    setFolderName('')
+    setFolderDialogOpen(false)
+  }
+
+  const [areaContextOpen, setAreaContextOpen] = React.useState(false)
+  const [areaContextPos, setAreaContextPos] = React.useState<{ x: number; y: number } | null>(null)
+
+  const handleSourcesAreaContext = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setAreaContextPos({ x: e.clientX, y: e.clientY })
+    setAreaContextOpen(true)
+  }
+
+  const [searchOpen, setSearchOpen] = React.useState(false)
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  const allSearchableItems = React.useMemo(() => {
+    const items: { type: 'wiki' | 'source'; title: string; path?: string; doc?: DocumentListItem }[] = []
+    const addWikiNodes = (nodes: WikiNode[]) => {
+      for (const node of nodes) {
+        if (node.path) items.push({ type: 'wiki', title: node.title, path: node.path })
+        if (node.children) addWikiNodes(node.children)
+      }
+    }
+    addWikiNodes(wikiTree)
+    for (const doc of sourceDocs) {
+      items.push({ type: 'source', title: doc.title || doc.filename, doc })
+    }
+    return items
+  }, [wikiTree, sourceDocs])
+
+  return (
+    <div className="h-full flex flex-col border-r border-border">
+      {/* Wiki selector */}
+      <div className="shrink-0 px-2 pt-2 pb-1">
+        <WikiSelector kbName={kbName} />
+      </div>
+
+      {/* Search */}
+      <div className="shrink-0 px-2 pb-1">
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="flex items-center gap-2 w-full px-2 py-1 text-xs text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent rounded-md transition-colors cursor-pointer"
+        >
+          <SearchIcon className="size-3" />
+          <span className="flex-1 text-left">Search</span>
+          <kbd className="text-[10px] text-muted-foreground/30 bg-muted px-1 rounded">⌘K</kbd>
+        </button>
+      </div>
+
+      {/* Search palette */}
+      <CommandDialog open={searchOpen} onOpenChange={setSearchOpen}>
+        <CommandInput placeholder="Search pages and sources..." />
+        <CommandList>
+          <CommandEmpty>No results found.</CommandEmpty>
+          {allSearchableItems.some((i) => i.type === 'wiki') && (
+            <CommandGroup heading="Wiki">
+              {allSearchableItems.filter((i) => i.type === 'wiki').map((item) => (
+                <CommandItem
+                  key={`wiki-${item.path}`}
+                  value={item.title}
+                  onSelect={() => {
+                    setSearchOpen(false)
+                    if (item.path) onWikiNavigate(item.path)
+                  }}
+                >
+                  <FileText className="size-3.5 mr-2 opacity-50" />
+                  {item.title}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+          {allSearchableItems.some((i) => i.type === 'source') && (
+            <CommandGroup heading="Sources">
+              {allSearchableItems.filter((i) => i.type === 'source').map((item) => (
+                <CommandItem
+                  key={`source-${item.doc?.id}`}
+                  value={item.title}
+                  onSelect={() => {
+                    setSearchOpen(false)
+                    if (item.doc) onSourceSelect(item.doc)
+                  }}
+                >
+                  <NotepadText className="size-3.5 mr-2 opacity-50" />
+                  {item.title}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+          <CommandSeparator />
+          <CommandGroup heading="Actions">
+            <CommandItem onSelect={() => { setSearchOpen(false); onCreateNote() }}>
+              <NotepadText className="size-3.5 mr-2 opacity-50" />
+              New Note
+            </CommandItem>
+            <CommandItem onSelect={() => { setSearchOpen(false); setFolderDialogOpen(true) }}>
+              <Folder className="size-3.5 mr-2 opacity-50" />
+              New Folder
+            </CommandItem>
+            <CommandItem onSelect={() => { setSearchOpen(false); onUpload() }}>
+              <Upload className="size-3.5 mr-2 opacity-50" />
+              Upload Files
+            </CommandItem>
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
+
+      {/* Wiki section */}
+      <div className="px-2 pt-1 shrink-0" style={{ minHeight: 120 }}>
+        <div className="flex items-center px-2 mb-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
+            Wiki
+          </span>
+        </div>
+        {loading ? (
+          <SidenavSkeleton lines={3} />
+        ) : hasWiki ? (
+          <div className="space-y-0.5">
+            {wikiTree.map((node, i) => (
+              <WikiTreeNode
+                key={node.path ?? node.title ?? i}
+                node={node}
+                depth={0}
+                activePath={wikiActivePath}
+                onNavigate={onWikiNavigate}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="px-2 py-4 text-center">
+            <BookOpen className="size-6 text-muted-foreground/20 mx-auto mb-2" />
+            <p className="text-xs text-muted-foreground mb-2">No wiki yet</p>
+            <a
+              href="https://claude.ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Open Claude
+              <ArrowUpRight className="size-3" />
+            </a>
+          </div>
+        )}
+      </div>
+
+      {/* Sources section — fills remaining height */}
+      <div
+        className="flex-1 min-h-0 flex flex-col px-2 mt-2"
+        onContextMenu={handleSourcesAreaContext}
+      >
+        <div className="flex items-center shrink-0">
+          <button
+            onClick={toggleSources}
+            className="flex items-center gap-1 px-2 py-1 flex-1 text-left cursor-pointer group"
+          >
+            <ChevronRight
+              className={cn(
+                'size-3 text-muted-foreground/40 transition-transform duration-150',
+                sourcesExpanded && 'rotate-90',
+              )}
+            />
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 group-hover:text-muted-foreground transition-colors">
+              Sources
+            </span>
+            {sourceDocs.length > 0 && (
+              <span className="text-[10px] text-muted-foreground/30 ml-1">
+                {sourceDocs.length}
+              </span>
+            )}
+          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-1 rounded-md text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent transition-colors cursor-pointer mr-1">
+                <Plus className="size-3" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" side="bottom">
+              <DropdownMenuItem onClick={onCreateNote}>
+                <NotepadText className="size-3.5 mr-2" />
+                New Note
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setFolderDialogOpen(true)}>
+                <Folder className="size-3.5 mr-2" />
+                New Folder
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onUpload}>
+                <Upload className="size-3.5 mr-2" />
+                Upload Files
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        {sourcesExpanded && (
+          <div className="flex-1 overflow-y-auto no-scrollbar mt-0.5">
+            <div className="space-y-0.5">
+              {loading ? (
+                <SidenavSkeleton lines={6} />
+              ) : sourceTree.length > 0 ? (
+                sourceTree.map((node, i) => (
+                  <SourceTreeNode
+                    key={node.doc?.id ?? node.name ?? i}
+                    node={node}
+                    depth={0}
+                    activeDocId={activeSourceDocId}
+                    parentPath="/"
+                    onSelect={onSourceSelect}
+                    onDelete={onDeleteDocument}
+                    onRename={onRenameDocument}
+                    onMove={onMoveDocument}
+                  />
+                ))
+              ) : (
+                <div className="px-2 py-4 text-center">
+                  <p className="text-xs text-muted-foreground/40 mb-2">No sources yet</p>
+                  <button
+                    onClick={onUpload}
+                    className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  >
+                    <Upload className="size-3" />
+                    Upload files
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Area-level context menu (right-click anywhere in sources) */}
+      <SourceAreaContextMenu
+        open={areaContextOpen}
+        x={areaContextPos?.x ?? 0}
+        y={areaContextPos?.y ?? 0}
+        onNewNote={() => { setAreaContextOpen(false); onCreateNote() }}
+        onNewFolder={() => {
+          setAreaContextOpen(false)
+          setFolderDialogOpen(true)
+        }}
+        onUpload={() => { setAreaContextOpen(false); onUpload() }}
+        onClose={() => setAreaContextOpen(false)}
+      />
+
+      {/* User menu at bottom */}
+      <div className="shrink-0 border-t border-border p-2">
+        <SidenavUserMenu />
+      </div>
+
+      {/* New folder dialog */}
+      <Dialog open={folderDialogOpen} onOpenChange={setFolderDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New folder</DialogTitle>
+          </DialogHeader>
+          <input
+            value={folderName}
+            onChange={(e) => setFolderName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreateFolder()}
+            placeholder="Folder name"
+            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+            autoFocus
+          />
+          <DialogFooter>
+            <button
+              onClick={handleCreateFolder}
+              disabled={!folderName.trim()}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 cursor-pointer"
+            >
+              Create
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+function SidenavSkeleton({ lines }: { lines: number }) {
+  return (
+    <div className="space-y-1 px-2 py-1">
+      {Array.from({ length: lines }).map((_, i) => (
+        <div
+          key={i}
+          className="h-5 rounded-md bg-muted/50 animate-pulse"
+          style={{ width: `${60 + Math.random() * 30}%` }}
+        />
+      ))}
+    </div>
+  )
+}
+
+function WikiTreeNode({
+  node,
+  depth,
+  activePath,
+  onNavigate,
+}: {
+  node: WikiNode
+  depth: number
+  activePath: string | null
+  onNavigate: (path: string) => void
+}) {
+  const hasChildren = node.children && node.children.length > 0
+  const isActive = node.path != null && node.path === activePath
+  const [expanded, setExpanded] = React.useState(true)
+
+  if (hasChildren) {
+    return (
+      <div>
+        <button
+          onClick={() => {
+            if (node.path) onNavigate(node.path)
+            else setExpanded((e) => !e)
+          }}
+          className={cn(
+            'flex items-center gap-1.5 w-full text-left text-xs rounded-md px-2 py-1 transition-colors cursor-pointer',
+            isActive
+              ? 'bg-accent text-foreground font-medium'
+              : 'text-muted-foreground hover:text-foreground hover:bg-accent/50',
+          )}
+          style={{ paddingLeft: `${depth * 12 + 8}px` }}
+        >
+          <ChevronRight
+            className={cn(
+              'size-3 shrink-0 transition-transform duration-150',
+              expanded && 'rotate-90',
+            )}
+          />
+          <FolderOpen className="size-3 shrink-0 opacity-50" />
+          <span className="truncate">{node.title}</span>
+        </button>
+        {expanded && (
+          <div className="mt-0.5">
+            {node.children!.map((child, i) => (
+              <WikiTreeNode
+                key={child.path ?? child.title ?? i}
+                node={child}
+                depth={depth + 1}
+                activePath={activePath}
+                onNavigate={onNavigate}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={() => node.path && onNavigate(node.path)}
+      className={cn(
+        'flex items-center gap-1.5 w-full text-left text-xs rounded-md px-2 py-1 transition-colors cursor-pointer',
+        isActive
+          ? 'bg-accent text-foreground font-medium'
+          : 'text-muted-foreground hover:text-foreground hover:bg-accent/50',
+      )}
+      style={{ paddingLeft: `${depth * 12 + 8 + 16}px` }}
+    >
+      <FileText className="size-3 shrink-0 opacity-50" />
+      <span className="truncate">{node.title}</span>
+    </button>
+  )
+}
+
+function SourceTreeNode({
+  node,
+  depth,
+  activeDocId,
+  parentPath,
+  onSelect,
+  onDelete,
+  onRename,
+  onMove,
+}: {
+  node: SourceNode
+  depth: number
+  activeDocId: string | null
+  parentPath: string
+  onSelect: (doc: DocumentListItem) => void
+  onDelete: (id: string) => void
+  onRename: (id: string, newTitle: string) => void
+  onMove: (docId: string, targetPath: string) => void
+}) {
+  const [expanded, setExpanded] = React.useState(depth === 0)
+  const [renaming, setRenaming] = React.useState(false)
+  const [renameValue, setRenameValue] = React.useState('')
+  const renameInputRef = React.useRef<HTMLInputElement>(null)
+  const [contextOpen, setContextOpen] = React.useState(false)
+  const [contextPos, setContextPos] = React.useState<{ x: number; y: number } | null>(null)
+
+  const startRename = () => {
+    if (!node.doc) return
+    setRenameValue(node.name)
+    setRenaming(true)
+    setTimeout(() => renameInputRef.current?.select(), 0)
+  }
+
+  const commitRename = () => {
+    const trimmed = renameValue.trim()
+    if (trimmed && trimmed !== node.name && node.doc) {
+      onRename(node.doc.id, trimmed)
+    }
+    setRenaming(false)
+  }
+
+  const folderPath = node.type === 'folder' ? parentPath + node.name + '/' : parentPath
+
+  if (node.type === 'folder') {
+    const [dragOver, setDragOver] = React.useState(false)
+
+    return (
+      <div>
+        <div
+          onClick={() => setExpanded((e) => !e)}
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes('application/x-llmwiki-doc')) {
+              e.preventDefault()
+              e.dataTransfer.dropEffect = 'move'
+              setDragOver(true)
+            }
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDragOver(false)
+            const docId = e.dataTransfer.getData('application/x-llmwiki-doc')
+            if (docId) onMove(docId, folderPath)
+          }}
+          className={cn(
+            'flex items-center gap-1.5 w-full text-left text-xs rounded-md px-2 py-1 transition-colors cursor-pointer',
+            dragOver
+              ? 'bg-primary/10 ring-1 ring-primary'
+              : 'text-muted-foreground hover:text-foreground hover:bg-accent/50',
+          )}
+          style={{ paddingLeft: `${depth * 12 + 8}px` }}
+        >
+          <ChevronRight
+            className={cn(
+              'size-3 shrink-0 transition-transform duration-150',
+              expanded && 'rotate-90',
+            )}
+          />
+          <FolderOpen className="size-3 shrink-0 opacity-50" />
+          <span className="truncate">{node.name}</span>
+        </div>
+        {expanded && node.children && (
+          <div className="mt-0.5">
+            {node.children.map((child, i) => (
+              <SourceTreeNode
+                key={child.doc?.id ?? child.name ?? i}
+                node={child}
+                depth={depth + 1}
+                activeDocId={activeDocId}
+                parentPath={folderPath}
+                onSelect={onSelect}
+                onDelete={onDelete}
+                onRename={onRename}
+                onMove={onMove}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const isActive = node.doc?.id != null && node.doc.id === activeDocId
+
+  if (renaming) {
+    return (
+      <div
+        className="flex items-center gap-1.5 px-2 py-0.5"
+        style={{ paddingLeft: `${depth * 12 + 8 + 16}px` }}
+      >
+        <NotepadText className="size-3 shrink-0 opacity-50" />
+        <input
+          ref={renameInputRef}
+          type="text"
+          value={renameValue}
+          onChange={(e) => setRenameValue(e.target.value)}
+          onBlur={commitRename}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commitRename()
+            if (e.key === 'Escape') setRenaming(false)
+          }}
+          className="flex-1 min-w-0 text-xs bg-background border border-border rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-ring"
+          autoFocus
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div
+      draggable
+      onDragStart={(e) => {
+        if (node.doc) {
+          e.dataTransfer.setData('application/x-llmwiki-doc', node.doc.id)
+          e.dataTransfer.effectAllowed = 'move'
+        }
+      }}
+      className={cn(
+        'flex items-center gap-1.5 w-full text-left text-xs rounded-md px-2 py-1 transition-colors cursor-pointer group',
+        isActive
+          ? 'bg-accent text-foreground font-medium'
+          : 'text-muted-foreground hover:text-foreground hover:bg-accent/50',
+      )}
+      style={{ paddingLeft: `${depth * 12 + 8 + 16}px` }}
+      onClick={() => {
+        if (node.doc) onSelect(node.doc)
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setContextPos({ x: e.clientX, y: e.clientY })
+        setContextOpen(true)
+      }}
+    >
+      {node.doc?.status === 'pending' || node.doc?.status === 'processing' ? (
+        <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground/50" />
+      ) : node.doc?.status === 'failed' ? (
+        <FileText className="size-3 shrink-0 text-destructive/60" />
+      ) : node.doc?.file_type === 'pdf' ? (
+        <FileText className="size-3 shrink-0 opacity-50" />
+      ) : (
+        <NotepadText className="size-3 shrink-0 opacity-50" />
+      )}
+      <span className="truncate flex-1">{node.name}</span>
+      <SourceContextMenu
+        open={contextOpen}
+        x={contextPos?.x ?? 0}
+        y={contextPos?.y ?? 0}
+        onRename={() => { setContextOpen(false); startRename() }}
+        onDelete={() => { setContextOpen(false); node.doc && onDelete(node.doc.id) }}
+        onClose={() => setContextOpen(false)}
+      />
+    </div>
+  )
+}
+
+function SourceContextMenu({
+  open,
+  x,
+  y,
+  onRename,
+  onDelete,
+  onClose,
+}: {
+  open: boolean
+  x: number
+  y: number
+  onRename: () => void
+  onDelete: () => void
+  onClose: () => void
+}) {
+  const menuRef = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    if (!open) return
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleEsc)
+    document.addEventListener('contextmenu', handleClick)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleEsc)
+      document.removeEventListener('contextmenu', handleClick)
+    }
+  }, [open, onClose])
+
+  if (!open) return null
+
+  return ReactDOM.createPortal(
+    <div
+      ref={menuRef}
+      className="fixed z-50 min-w-[8rem] bg-popover text-popover-foreground border rounded-md p-1 shadow-md animate-in fade-in-0 zoom-in-95"
+      style={{ left: x, top: y }}
+    >
+      <button
+        onClick={onRename}
+        className="flex items-center gap-2 w-full rounded-sm px-2 py-1.5 text-sm hover:bg-accent cursor-pointer"
+      >
+        <Pencil className="size-3.5" />
+        Rename
+      </button>
+      <div className="h-px bg-border -mx-1 my-1" />
+      <button
+        onClick={onDelete}
+        className="flex items-center gap-2 w-full rounded-sm px-2 py-1.5 text-sm text-destructive hover:bg-destructive/10 cursor-pointer"
+      >
+        <Trash2 className="size-3.5" />
+        Delete
+      </button>
+    </div>,
+    document.body,
+  )
+}
+
+function SourceAreaContextMenu({
+  open,
+  x,
+  y,
+  onNewNote,
+  onNewFolder,
+  onUpload,
+  onClose,
+}: {
+  open: boolean
+  x: number
+  y: number
+  onNewNote: () => void
+  onNewFolder: () => void
+  onUpload: () => void
+  onClose: () => void
+}) {
+  const menuRef = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    if (!open) return
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose()
+    }
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleEsc)
+    document.addEventListener('contextmenu', handleClick)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleEsc)
+      document.removeEventListener('contextmenu', handleClick)
+    }
+  }, [open, onClose])
+
+  if (!open) return null
+
+  return ReactDOM.createPortal(
+    <div
+      ref={menuRef}
+      className="fixed z-50 min-w-[8rem] bg-popover text-popover-foreground border rounded-md p-1 shadow-md animate-in fade-in-0 zoom-in-95"
+      style={{ left: x, top: y }}
+    >
+      <button
+        onClick={onNewNote}
+        className="flex items-center gap-2 w-full rounded-sm px-2 py-1.5 text-sm hover:bg-accent cursor-pointer"
+      >
+        <NotepadText className="size-3.5" />
+        New Note
+      </button>
+      <button
+        onClick={onNewFolder}
+        className="flex items-center gap-2 w-full rounded-sm px-2 py-1.5 text-sm hover:bg-accent cursor-pointer"
+      >
+        <Folder className="size-3.5" />
+        New Folder
+      </button>
+      <div className="h-px bg-border -mx-1 my-1" />
+      <button
+        onClick={onUpload}
+        className="flex items-center gap-2 w-full rounded-sm px-2 py-1.5 text-sm hover:bg-accent cursor-pointer"
+      >
+        <Upload className="size-3.5" />
+        Upload Files
+      </button>
+    </div>,
+    document.body,
+  )
+}
+
+function WikiSelector({ kbName }: { kbName: string }) {
+  const router = useRouter()
+  const knowledgeBases = useKBStore((s) => s.knowledgeBases)
+  const createKB = useKBStore((s) => s.createKB)
+  const [open, setOpen] = React.useState(false)
+  const [createDialogOpen, setCreateDialogOpen] = React.useState(false)
+  const [newName, setNewName] = React.useState('')
+  const [creating, setCreating] = React.useState(false)
+
+  const handleCreate = async () => {
+    if (!newName.trim()) return
+    setCreating(true)
+    try {
+      const kb = await createKB(newName.trim())
+      setCreateDialogOpen(false)
+      setNewName('')
+      router.push(`/wikis/${kb.slug}`)
+    } catch {
+      // error handled by store
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  return (
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button className="flex items-center gap-1.5 w-full px-2 py-1.5 text-sm font-medium text-foreground hover:bg-accent rounded-md transition-colors cursor-pointer">
+            <span className="truncate flex-1 text-left">{kbName}</span>
+            <ChevronsUpDown className="size-3 text-muted-foreground/50 shrink-0" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-52 p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Search wikis..." />
+            <CommandList>
+              <CommandEmpty>No wikis found.</CommandEmpty>
+              {knowledgeBases.map((kb) => (
+                <CommandItem
+                  key={kb.id}
+                  value={kb.name}
+                  onSelect={() => {
+                    setOpen(false)
+                    router.push(`/wikis/${kb.slug}`)
+                  }}
+                >
+                  {kb.name}
+                </CommandItem>
+              ))}
+            </CommandList>
+            <CommandSeparator />
+            <CommandList>
+              <CommandItem
+                onSelect={() => {
+                  setOpen(false)
+                  setCreateDialogOpen(true)
+                }}
+              >
+                <Plus className="size-3.5 mr-2" />
+                Create Wiki
+              </CommandItem>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create wiki</DialogTitle>
+          </DialogHeader>
+          <input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+            placeholder="My Research"
+            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+            autoFocus
+          />
+          <DialogFooter>
+            <button
+              onClick={handleCreate}
+              disabled={creating || !newName.trim()}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 cursor-pointer"
+            >
+              {creating ? 'Creating...' : 'Create'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+function SidenavUserMenu() {
+  const router = useRouter()
+  const { theme, setTheme } = useTheme()
+  const user = useUserStore((s) => s.user)
+  const signOutLocal = useUserStore((s) => s.signOut)
+  const [mounted, setMounted] = React.useState(false)
+
+  React.useEffect(() => { setMounted(true) }, [])
+
+  const handleSignOut = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    signOutLocal()
+    router.push('/login')
+  }
+
+  if (!user) return null
+
+  const initials = user.email.slice(0, 2).toUpperCase()
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="flex items-center gap-2 w-full px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors cursor-pointer">
+          <div className="h-5 w-5 bg-muted border border-border rounded flex items-center justify-center shrink-0">
+            <span className="text-[8px] font-medium">{initials}</span>
+          </div>
+          <span className="truncate">{user.email}</span>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" side="top" className="w-48">
+        <DropdownMenuItem onClick={() => router.push('/settings')}>
+          <Settings className="mr-2 h-4 w-4" />
+          Settings
+        </DropdownMenuItem>
+        {mounted && (
+          <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+            {theme === 'dark' ? (
+              <><Sun className="mr-2 h-4 w-4" />Light Mode</>
+            ) : (
+              <><Moon className="mr-2 h-4 w-4" />Dark Mode</>
+            )}
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={handleSignOut}>
+          <LogOut className="mr-2 h-4 w-4" />
+          Sign Out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}

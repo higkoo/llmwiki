@@ -43,7 +43,7 @@ class SupabaseTokenVerifier(TokenVerifier):
                 payload = pyjwt.decode(
                     token, signing_key.key,
                     algorithms=["ES256", "RS256"],
-                    options={"verify_aud": False},
+                    audience="authenticated",
                 )
                 return payload
             except Exception as e:
@@ -55,7 +55,7 @@ class SupabaseTokenVerifier(TokenVerifier):
                     token,
                     settings.SUPABASE_JWT_SECRET,
                     algorithms=["HS256"],
-                    options={"verify_aud": False},
+                    audience="authenticated",
                 )
                 return payload
             except pyjwt.PyJWTError as e:

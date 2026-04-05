@@ -32,7 +32,7 @@ export async function updateSession(request: NextRequest) {
 
   if (user && (path === "/" || path === "/login" || path === "/signup")) {
     const url = request.nextUrl.clone();
-    url.pathname = "/kb";
+    url.pathname = "/wikis";
     return NextResponse.redirect(url);
   }
 

@@ -15,10 +15,12 @@ router = APIRouter(prefix="/v1/knowledge-bases", tags=["knowledge-bases"])
 
 class CreateKnowledgeBase(BaseModel):
     name: str
+    description: str | None = None
 
 
 class UpdateKnowledgeBase(BaseModel):
-    name: str
+    name: str | None = None
+    description: str | None = None
 
 
 class KnowledgeBaseOut(BaseModel):
@@ -26,6 +28,9 @@ class KnowledgeBaseOut(BaseModel):
     user_id: UUID
     name: str
     slug: str
+    description: str | None = None
+    source_count: int = 0
+    wiki_page_count: int = 0
     created_at: datetime
     updated_at: datetime
 
@@ -51,8 +56,13 @@ async def _unique_slug(db: ScopedDB, name: str) -> str:
 @router.get("", response_model=list[KnowledgeBaseOut])
 async def list_knowledge_bases(db: Annotated[ScopedDB, Depends(get_scoped_db)]):
     rows = await db.fetch(
-        "SELECT id, user_id, name, slug, created_at, updated_at "
-        "FROM knowledge_bases ORDER BY created_at DESC"
+        "SELECT kb.id, kb.user_id, kb.name, kb.slug, kb.description, "
+        "  kb.created_at, kb.updated_at, "
+        "  (SELECT COUNT(*) FROM documents d "
+        "   WHERE d.knowledge_base_id = kb.id AND d.path NOT LIKE '/wiki/%%' AND NOT d.archived) AS source_count, "
+        "  (SELECT COUNT(*) FROM documents d "
+        "   WHERE d.knowledge_base_id = kb.id AND d.path LIKE '/wiki/%%' AND NOT d.archived) AS wiki_page_count "
+        "FROM knowledge_bases kb ORDER BY kb.updated_at DESC"
     )
     return rows
 
@@ -64,11 +74,12 @@ async def create_knowledge_base(
 ):
     slug = await _unique_slug(db, body.name)
     row = await db.fetchrow(
-        "INSERT INTO knowledge_bases (user_id, name, slug) "
-        "VALUES (auth.uid(), $1, $2) "
-        "RETURNING id, user_id, name, slug, created_at, updated_at",
+        "INSERT INTO knowledge_bases (user_id, name, slug, description) "
+        "VALUES (auth.uid(), $1, $2, $3) "
+        "RETURNING id, user_id, name, slug, description, created_at, updated_at",
         body.name,
         slug,
+        body.description,
     )
     return row
 
@@ -79,8 +90,13 @@ async def get_knowledge_base(
     db: Annotated[ScopedDB, Depends(get_scoped_db)],
 ):
     row = await db.fetchrow(
-        "SELECT id, user_id, name, slug, created_at, updated_at "
-        "FROM knowledge_bases WHERE id = $1",
+        "SELECT kb.id, kb.user_id, kb.name, kb.slug, kb.description, "
+        "  kb.created_at, kb.updated_at, "
+        "  (SELECT COUNT(*) FROM documents d "
+        "   WHERE d.knowledge_base_id = kb.id AND d.path NOT LIKE '/wiki/%%' AND NOT d.archived) AS source_count, "
+        "  (SELECT COUNT(*) FROM documents d "
+        "   WHERE d.knowledge_base_id = kb.id AND d.path LIKE '/wiki/%%' AND NOT d.archived) AS wiki_page_count "
+        "FROM knowledge_bases kb WHERE kb.id = $1",
         kb_id,
     )
     if not row:
@@ -94,13 +110,31 @@ async def update_knowledge_base(
     body: UpdateKnowledgeBase,
     db: Annotated[ScopedDB, Depends(get_scoped_db)],
 ):
-    row = await db.fetchrow(
-        "UPDATE knowledge_bases SET name = $1, updated_at = now() "
-        "WHERE id = $2 "
-        "RETURNING id, user_id, name, slug, created_at, updated_at",
-        body.name,
-        kb_id,
+    updates = []
+    params = []
+    idx = 1
+
+    if body.name is not None:
+        updates.append(f"name = ${idx}")
+        params.append(body.name)
+        idx += 1
+    if body.description is not None:
+        updates.append(f"description = ${idx}")
+        params.append(body.description)
+        idx += 1
+
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    updates.append("updated_at = now()")
+    params.append(kb_id)
+
+    sql = (
+        f"UPDATE knowledge_bases SET {', '.join(updates)} "
+        f"WHERE id = ${idx} "
+        f"RETURNING id, user_id, name, slug, description, created_at, updated_at"
     )
+    row = await db.fetchrow(sql, *params)
     if not row:
         raise HTTPException(status_code=404, detail="Knowledge base not found")
     return row

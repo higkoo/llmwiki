@@ -32,7 +32,7 @@ export default function FilePage() {
       <div className="h-full flex flex-col bg-background">
         <div className="flex items-center gap-1.5 px-5 py-4 shrink-0">
           <button
-            onClick={() => router.push(`/kb/${params.slug}`)}
+            onClick={() => router.push(`/wikis/${params.slug}`)}
             className="p-1 rounded transition-colors hover:bg-accent cursor-pointer text-foreground"
           >
             <ChevronLeft className="size-4" />
@@ -42,7 +42,7 @@ export default function FilePage() {
           </button>
           <nav className="flex items-center gap-1 text-sm">
             <button
-              onClick={() => router.push('/kb')}
+              onClick={() => router.push('/wikis')}
               className="px-1.5 py-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer truncate"
             >
               {kb?.name ?? params.slug}
@@ -70,7 +70,7 @@ export default function FilePage() {
   if (!kb) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-2 bg-background">
-        <h1 className="text-lg font-medium">Knowledge base not found</h1>
+        <h1 className="text-lg font-medium">Wiki not found</h1>
       </div>
     )
   }
@@ -80,10 +80,10 @@ export default function FilePage() {
       <div className="flex flex-col items-center justify-center h-full gap-2 bg-background">
         <h1 className="text-lg font-medium">Document not found</h1>
         <p className="text-sm text-muted-foreground">
-          Document #{docNumber} does not exist in this knowledge base.
+          Document #{docNumber} does not exist in this wiki.
         </p>
         <button
-          onClick={() => router.push(`/kb/${params.slug}`)}
+          onClick={() => router.push(`/wikis/${params.slug}`)}
           className="mt-2 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
         >
           Back to {kb.name}
@@ -101,7 +101,7 @@ export default function FilePage() {
         initialTitle={document.title ?? document.filename}
         initialTags={document.tags}
         backLabel={kb.name}
-        onBack={() => router.push(`/kb/${params.slug}`)}
+        onBack={() => router.push(`/wikis/${params.slug}`)}
       />
     )
   }
@@ -116,7 +116,7 @@ export default function FilePage() {
         <p className="text-xs text-muted-foreground mt-2">File viewer coming soon</p>
       </div>
       <button
-        onClick={() => router.push(`/kb/${params.slug}`)}
+        onClick={() => router.push(`/wikis/${params.slug}`)}
         className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
       >
         Back to {kb.name}

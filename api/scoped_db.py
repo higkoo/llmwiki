@@ -2,20 +2,16 @@ import asyncpg
 
 
 class ScopedDB:
-    __slots__ = ("_pool", "_conn", "_user_id")
+    __slots__ = ("_conn", "_user_id")
 
     def __init__(self, pool: asyncpg.Pool, conn: asyncpg.Connection, user_id: str):
         assert user_id
-        self._pool = pool
         self._conn = conn
         self._user_id = user_id
 
     @property
     def user_id(self) -> str:
         return self._user_id
-
-    def service_conn(self):
-        return self._pool.acquire()
 
     async def fetchrow(self, sql: str, *args) -> dict | None:
         row = await self._conn.fetchrow(sql, *args)
