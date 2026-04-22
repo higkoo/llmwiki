@@ -4,155 +4,155 @@ from config import settings
 from db import scoped_query
 from .helpers import get_user_id
 
-GUIDE_TEXT = """# LLM Wiki — How It Works
+GUIDE_TEXT = """# LLM Wiki — 工作原理
 
-You are connected to an **LLM Wiki** — a personal knowledge workspace where you compile and maintain a structured wiki from raw source documents.
+你已连接到 **LLM Wiki** — 一个个人知识工作空间，你可以在这里从原始源文档编译并维护一个结构化的维基。
 
-## Architecture
+## 架构
 
-1. **Raw Sources** (path: `/`) — uploaded documents (PDFs, notes, images, spreadsheets). Source of truth. Read-only.
-2. **Compiled Wiki** (path: `/wiki/`) — markdown pages YOU create and maintain. You own this layer.
-3. **Tools** — `search`, `read`, `write`, `delete` — your interface to both layers.
+1. **原始资料** (路径: `/`) — 上传的文档（PDF、笔记、图像、电子表格）。事实来源。只读。
+2. **编译维基** (路径: `/wiki/`) — 由你创建和维护的 Markdown 页面。你拥有这一层。
+3. **工具** — `search`、`read`、`write`、`delete` — 你与两层的接口。
 
-## Wiki Structure
+## 维基结构
 
-Every wiki follows this structure. These categories are not suggestions — they are the backbone of the wiki.
+每个维基都遵循此结构。这些类别不是建议 — 它们是维基的 backbone。
 
-### Overview (`/wiki/overview.md`) — THE HUB PAGE
-Always exists. This is the front page of the wiki. It must contain:
-- A summary of what this wiki covers and its scope
-- **Source count** and page count (update on every ingest)
-- **Key Findings** — the most important insights across all sources
-- **Recent Updates** — last 5-10 actions (ingests, new pages, revisions)
+### 概览 (`/wiki/overview.md`) — 中心页面
+始终存在。这是维基的首页。它必须包含：
+- 此维基涵盖的内容及其范围的摘要
+- **资料数量**和页面数量（每次摄取时更新）
+- **关键发现** — 所有资料中最重要的见解
+- **最近更新** — 最近 5-10 个操作（摄取、新页面、修订）
 
-Update the Overview after EVERY ingest or major edit. If you only update one page, it should be this one.
+每次摄取或重大编辑后更新概览。如果你只更新一个页面，应该是这个。
 
-### Concepts (`/wiki/concepts/`) — ABSTRACT IDEAS
-Pages for theoretical frameworks, methodologies, principles, themes — anything conceptual.
+### 概念 (`/wiki/concepts/`) — 抽象思想
+用于理论框架、方法论、原则、主题 — 任何概念性的内容。
 - `/wiki/concepts/scaling-laws.md`
 - `/wiki/concepts/attention-mechanisms.md`
 - `/wiki/concepts/self-supervised-learning.md`
 
-Each concept page should: define the concept, explain why it matters in context, cite sources, and cross-reference related concepts and entities.
+每个概念页面应：定义概念，解释它在上下文中的重要性，引用资料，并交叉引用相关概念和实体。
 
-### Entities (`/wiki/entities/`) — CONCRETE THINGS
-Pages for people, organizations, products, technologies, papers, datasets — anything you can point to.
+### 实体 (`/wiki/entities/`) — 具体事物
+用于人物、组织、产品、技术、论文、数据集 — 任何你可以指向的东西。
 - `/wiki/entities/transformer.md`
 - `/wiki/entities/openai.md`
 - `/wiki/entities/attention-is-all-you-need.md`
 
-Each entity page should: describe what it is, note key facts, cite sources, and cross-reference related concepts and entities.
+每个实体页面应：描述它是什么，记录关键事实，引用资料，并交叉引用相关概念和实体。
 
-### Log (`/wiki/log.md`) — CHRONOLOGICAL RECORD
-Always exists. Append-only. Records every ingest, major edit, and lint pass. Never delete entries.
+### 日志 (`/wiki/log.md`) — 时间记录
+始终存在。仅追加。记录每次摄取、重大编辑和检查。永远不要删除条目。
 
-Format — each entry starts with a parseable header:
+格式 — 每个条目以可解析的标题开始：
 ```
-## [YYYY-MM-DD] ingest | Source Title
-- Created concept page: [Page Title](concepts/page.md)
-- Updated entity page: [Page Title](entities/page.md)
-- Updated overview with new findings
-- Key takeaway: one sentence summary
+## [YYYY-MM-DD] ingest | 资料标题
+- 创建概念页面：[页面标题](concepts/page.md)
+- 更新实体页面：[页面标题](entities/page.md)
+- 更新概览，添加新发现
+- 关键要点：一句话总结
 
-## [YYYY-MM-DD] query | Question Asked
-- Created new page: [Page Title](concepts/page.md)
-- Finding: one sentence answer
+## [YYYY-MM-DD] query | 所提问题
+- 创建新页面：[页面标题](concepts/page.md)
+- 发现：一句话答案
 
-## [YYYY-MM-DD] lint | Health Check
-- Fixed contradiction between X and Y
-- Added missing cross-reference in Z
+## [YYYY-MM-DD] lint | 健康检查
+- 修复 X 和 Y 之间的矛盾
+- 在 Z 中添加缺失的交叉引用
 ```
 
-### Additional Pages
-You can create pages outside of concepts/ and entities/ when needed:
-- `/wiki/comparisons/x-vs-y.md` — for deep comparisons
-- `/wiki/timeline.md` — for chronological narratives
+### 其他页面
+你可以在需要时在 concepts/ 和 entities/ 之外创建页面：
+- `/wiki/comparisons/x-vs-y.md` — 用于深度比较
+- `/wiki/timeline.md` — 用于时间叙述
 
-But concepts/ and entities/ are the primary categories. When in doubt, file there.
+但 concepts/ 和 entities/ 是主要类别。如有疑问，请放在那里。
 
-## Page Hierarchy
+## 页面层次结构
 
-Wiki pages use a parent/child hierarchy via paths:
-- `/wiki/concepts.md` — parent page (optional; summarizes all concepts)
-- `/wiki/concepts/attention.md` — child page
+维基页面通过路径使用父/子层次结构：
+- `/wiki/concepts.md` — 父页面（可选；总结所有概念）
+- `/wiki/concepts/attention.md` — 子页面
 
-Parent pages summarize; child pages go deep. The UI renders this as an expandable tree.
+父页面总结；子页面深入。UI 将其渲染为可展开的树。
 
-## Writing Standards
+## 写作标准
 
-**Wiki pages must be substantially richer than a chat response.** They are persistent, curated artifacts.
+**维基页面必须比聊天回复丰富得多。**它们是持久的、精心策划的成果。
 
-### Structure
-- Start with a summary paragraph (no H1 — the title is rendered by the UI)
-- Use `##` for major sections, `###` for subsections
-- One idea per section. Bullet points for facts, prose for synthesis.
+### 结构
+- 以摘要段落开始（无 H1 — 标题由 UI 渲染）
+- 使用 `##` 表示主要部分，`###` 表示子部分
+- 每个部分一个想法。事实使用项目符号，综合使用散文。
 
-### Visual Elements — MANDATORY
+### 视觉元素 — 必须
 
-**Every wiki page MUST include at least one visual element.** A page with only prose is incomplete.
+**每个维基页面必须包含至少一个视觉元素。**只有散文的页面是不完整的。
 
-**Mermaid diagrams** — use for ANY structured relationship:
-- Flowcharts for processes, pipelines, decision trees
-- Sequence diagrams for interactions, timelines
-- Quadrant charts for comparisons, trade-off analyses
-- Entity relationship diagrams for people, companies, concepts
+**Mermaid 图表** — 用于任何结构化关系：
+- 流程图用于流程、管道、决策树
+- 序列图用于交互、时间线
+- 象限图用于比较、权衡分析
+- 实体关系图用于人物、公司、概念
 
 ````
 ```mermaid
 graph LR
-    A[Input] --> B[Process] --> C[Output]
+    A[输入] --> B[处理] --> C[输出]
 ```
 ````
 
-**Tables** — use for ANY structured comparison:
-- Feature matrices, pros/cons, timelines, metrics
-- If you're listing 3+ items with attributes, it should be a table
+**表格** — 用于任何结构化比较：
+- 功能矩阵、优缺点、时间线、指标
+- 如果你列出 3+ 个带有属性的项目，应该使用表格
 
-**SVG assets** — for custom visuals Mermaid can't express:
-- Create: `write(command="create", path="/wiki/", title="diagram.svg", content="<svg>...</svg>", tags=["diagram"])`
-- Embed in wiki pages: `![Description](diagram.svg)`
+**SVG 资产** — 用于 Mermaid 无法表达的自定义视觉效果：
+- 创建：`write(command="create", path="/wiki/", title="diagram.svg", content="<svg>...</svg>", tags=["diagram"])`
+- 嵌入维基页面：`![描述](diagram.svg)`
 
-### Citations — REQUIRED
+### 引用 — 必需
 
-Every factual claim MUST cite its source via markdown footnotes:
+每个事实性声明必须通过 Markdown 脚注引用其来源：
 ```
-Transformers use self-attention[^1] that scales quadratically[^2].
+Transformer 使用自注意力[^1]，其扩展性呈二次方[^2]。
 
 [^1]: attention-paper.pdf, p.3
 [^2]: scaling-laws.pdf, p.12-14
 ```
 
-Rules:
-- Use the FULL source filename — never truncate
-- Add page numbers for PDFs: `paper.pdf, p.3`
-- One citation per claim — don't batch unrelated claims
-- Citations render as hoverable popover badges in the UI
+规则：
+- 使用完整的源文件名 — 永远不要截断
+- 为 PDF 添加页码：`paper.pdf, p.3`
+- 每个声明一个引用 — 不要批量处理不相关的声明
+- 引用在 UI 中渲染为可悬停的弹出式徽章
 
-### Cross-References
-Link between wiki pages using standard markdown links to other wiki paths.
+### 交叉引用
+使用指向其他维基路径的标准 Markdown 链接在维基页面之间建立链接。
 
-## Core Workflows
+## 核心工作流程
 
-### Ingest a New Source
-1. Read it: `read(path="source.pdf", pages="1-10")`
-2. Discuss key takeaways with the user
-3. Create or update **concept** pages under `/wiki/concepts/`
-4. Create or update **entity** pages under `/wiki/entities/`
-5. Update `/wiki/overview.md` — source count, key findings, recent updates
-6. Append an entry to `/wiki/log.md`
-7. A single source typically touches 5-15 wiki pages — that's expected
+### 摄取新资料
+1. 阅读它：`read(path="source.pdf", pages="1-10")`
+2. 与用户讨论关键要点
+3. 在 `/wiki/concepts/` 下创建或更新 **概念**页面
+4. 在 `/wiki/entities/` 下创建或更新 **实体**页面
+5. 更新 `/wiki/overview.md` — 资料数量、关键发现、最近更新
+6. 向 `/wiki/log.md` 添加条目
+7. 一个资料通常会涉及 5-15 个维基页面 — 这是预期的
 
-### Answer a Question
-1. `search(mode="search", query="term")` to find relevant content
-2. Read relevant wiki pages and sources
-3. Synthesize with citations
-4. If the answer is valuable, file it as a new wiki page — explorations should compound
-5. Append a query entry to `/wiki/log.md`
+### 回答问题
+1. `search(mode="search", query="术语")` 查找相关内容
+2. 阅读相关维基页面和资料
+3. 综合并引用
+4. 如果答案有价值，将其归档为新的维基页面 — 探索应该累积
+5. 向 `/wiki/log.md` 添加查询条目
 
-### Maintain the Wiki (Lint)
-Check for: contradictions, orphan pages, missing cross-references, stale claims, concepts mentioned but lacking their own page. Append a lint entry to `/wiki/log.md`.
+### 维护维基（检查）
+检查：矛盾、孤立页面、缺失的交叉引用、过时的声明、提及但缺乏自己页面的概念。向 `/wiki/log.md` 添加检查条目。
 
-## Available Knowledge Bases
+## 可用的知识库
 
 """
 
@@ -161,7 +161,7 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.tool(
         name="guide",
-        description="Get started with LLM Wiki. Call this to understand how the knowledge vault works and see your available knowledge bases.",
+        description="开始使用 LLM Wiki。调用此工具了解知识库的工作原理并查看你可用的知识库。",
     )
     async def guide(ctx: Context) -> str:
         user_id = get_user_id(ctx)
@@ -173,9 +173,9 @@ def register(mcp: FastMCP) -> None:
             "FROM knowledge_bases kb ORDER BY created_at DESC",
         )
         if not kbs:
-            return GUIDE_TEXT + "No knowledge bases yet. Create one at " + settings.APP_URL + "/wikis"
+            return GUIDE_TEXT + "还没有知识库。在 " + settings.APP_URL + "/wikis 创建一个"
 
         lines = []
         for kb in kbs:
-            lines.append(f"- **{kb['name']}** (`{kb['slug']}`) — {kb['source_count']} sources, {kb['wiki_count']} wiki pages")
+            lines.append(f"- **{kb['name']}** (`{kb['slug']}`) — {kb['source_count']} 个资料，{kb['wiki_count']} 个维基页面")
         return GUIDE_TEXT + "\n".join(lines)

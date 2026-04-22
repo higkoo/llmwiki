@@ -32,15 +32,15 @@ export default function NewKnowledgeBasePage() {
 
   return (
     <div className="max-w-md mx-auto p-8">
-      <h1 className="text-xl font-semibold tracking-tight">Create Wiki</h1>
+      <h1 className="text-xl font-semibold tracking-tight">创建维基</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        A wiki is an LLM-maintained knowledge base compiled from your raw sources.
+        维基是由 LLM 维护的知识库，从你的原始资料编译而成。
       </p>
 
       <form onSubmit={handleCreate} className="mt-6 space-y-4">
         <div>
           <label htmlFor="kb-name" className="block text-sm font-medium mb-1.5">
-            Name
+            名称
           </label>
           <input
             id="kb-name"
@@ -48,14 +48,14 @@ export default function NewKnowledgeBasePage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
-            placeholder="My Research"
+            placeholder="我的研究"
             required
           />
         </div>
 
         <div>
           <label htmlFor="kb-description" className="block text-sm font-medium mb-1.5">
-            Description <span className="text-muted-foreground font-normal">(optional)</span>
+            描述 <span className="text-muted-foreground font-normal">(可选)</span>
           </label>
           <textarea
             id="kb-description"
@@ -63,7 +63,7 @@ export default function NewKnowledgeBasePage() {
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background resize-none"
-            placeholder="Notes and papers about..."
+            placeholder="关于...的笔记和论文"
           />
         </div>
 
@@ -79,10 +79,10 @@ export default function NewKnowledgeBasePage() {
           {loading ? (
             <>
               <Loader2 size={14} className="animate-spin" />
-              Creating...
+              创建中...
             </>
           ) : (
-            'Create'
+            '创建'
           )}
         </button>
       </form>

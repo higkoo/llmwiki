@@ -33,9 +33,9 @@ async def _list_all_kbs(user_id: str) -> str:
         "SELECT name, slug, created_at FROM knowledge_bases ORDER BY created_at DESC",
     )
     if not kbs:
-        return "No knowledge bases found. Create one first."
+        return "未找到知识库。请先创建一个。"
 
-    lines = ["**Knowledge Bases:**\n"]
+    lines = ["**知识库：**\n"]
     for kb in kbs:
         doc_count = await scoped_queryrow(
             user_id,
@@ -44,7 +44,7 @@ async def _list_all_kbs(user_id: str) -> str:
             kb["slug"],
         )
         cnt = doc_count["cnt"] if doc_count else 0
-        lines.append(f"  {kb['slug']}/ — {kb['name']} ({cnt} documents)")
+        lines.append(f"  {kb['slug']}/ — {kb['name']} ({cnt} 个文档)")
     return "\n".join(lines)
 
 
@@ -66,7 +66,7 @@ async def _list_documents(user_id: str, kb: dict, target: str, tags: list[str] |
         docs = [d for d in docs if tag_set.issubset({t.lower() for t in (d["tags"] or [])})]
 
     if not docs:
-        return f"No matches for `{target}` in {kb['slug']}."
+        return f"在 {kb['slug']} 中没有找到与 `{target}` 匹配的内容。"
 
     sources = [d for d in docs if not d["path"].startswith("/wiki/")]
     wiki_pages = [d for d in docs if d["path"].startswith("/wiki/")]
@@ -74,19 +74,19 @@ async def _list_documents(user_id: str, kb: dict, target: str, tags: list[str] |
     lines = [f"**{kb['name']}** (`{target}`):\n"]
 
     if sources:
-        lines.append(f"**Sources ({len(sources)}):**")
+        lines.append(f"**资料 ({len(sources)}):**")
         for doc in sources[:MAX_LIST]:
             tag_str = f" [{', '.join(doc['tags'])}]" if doc["tags"] else ""
             date_part = f", {doc['updated_at'].strftime('%Y-%m-%d')}" if doc["updated_at"] else ""
-            pages_part = f", {doc['page_count']}p" if doc["page_count"] else ""
+            pages_part = f", {doc['page_count']}页" if doc["page_count"] else ""
             lines.append(f"  {doc['path']}{doc['filename']} ({doc['file_type']}{pages_part}{date_part}){tag_str}")
         if len(sources) > MAX_LIST:
-            lines.append(f"  ... {len(sources) - MAX_LIST} more")
+            lines.append(f"  ... 还有 {len(sources) - MAX_LIST} 个")
 
     if wiki_pages:
         if sources:
             lines.append("")
-        lines.append(f"**Wiki ({len(wiki_pages)} pages):**")
+        lines.append(f"**维基 ({len(wiki_pages)} 页面):**")
         for doc in wiki_pages[:MAX_LIST]:
             date_part = f", {doc['updated_at'].strftime('%Y-%m-%d')}" if doc["updated_at"] else ""
             lines.append(f"  {doc['path']}{doc['filename']}{date_part}")
@@ -126,18 +126,18 @@ async def _search_chunks(
         matches = [m for m in matches if tag_set.issubset({t.lower() for t in (m.get("tags") or [])})]
 
     if not matches:
-        return f"No matches for `{query}` in {kb['slug']}."
+        return f"在 {kb['slug']} 中没有找到与 `{query}` 匹配的内容。"
 
-    lines = [f"**{len(matches)} result(s)** for `{query}`:\n"]
+    lines = [f"**{len(matches)} 个结果** for `{query}`:\n"]
     for m in matches:
         filepath = f"{m['path']}{m['filename']}"
-        page_str = f" (p.{m['page']})" if m['page'] else ""
+        page_str = f" (第{m['page']}页)" if m['page'] else ""
         breadcrumb = f"\n  {m['header_breadcrumb']}" if m["header_breadcrumb"] else ""
         snippet = _extract_snippet(m["content"], query)
         link = deep_link(kb["slug"], m["path"], m["filename"])
         score = m.get("score", 0)
         score_str = f" [{score:.1f}]" if score else ""
-        lines.append(f"**{filepath}**{page_str}{score_str} — [view]({link}){breadcrumb}")
+        lines.append(f"**{filepath}**{page_str}{score_str} — [查看]({link}){breadcrumb}")
         lines.append(f"```\n{snippet}\n```\n")
 
     return "\n".join(lines)
@@ -148,13 +148,13 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool(
         name="search",
         description=(
-            "Browse or search the knowledge vault.\n\n"
-            "Sources (raw documents) live at `/`. Wiki pages (LLM-compiled) live at `/wiki/`.\n\n"
-            "Modes:\n"
-            "- list: browse files and folders\n"
-            "- search: keyword search across document content (searches chunks for precise results with page numbers)\n\n"
-            "Use `path` to scope: `*` for root, `/wiki/**` for wiki only, `*.pdf` for PDFs, etc.\n"
-            "Use `tags` to filter by document tags."
+            "浏览或搜索知识库。\n\n"
+            "资料（原始文档）位于 `/`。维基页面（LLM 编译）位于 `/wiki/`。\n\n"
+            "模式：\n"
+            "- list: 浏览文件和文件夹\n"
+            "- search: 跨文档内容进行关键词搜索（搜索块以获得带页码的精确结果）\n\n"
+            "使用 `path` 来限定范围：`*` 表示根目录，`/wiki/**` 仅表示维基，`*.pdf` 表示 PDF 文件等。\n"
+            "使用 `tags` 按文档标签过滤。"
         ),
     )
     async def search(
@@ -173,13 +173,13 @@ def register(mcp: FastMCP) -> None:
 
         kb = await resolve_kb(user_id, knowledge_base)
         if not kb:
-            return f"Knowledge base '{knowledge_base}' not found."
+            return f"未找到知识库 '{knowledge_base}'。"
 
         if mode == "list":
             return await _list_documents(user_id, kb, path, tags)
         elif mode == "search":
             if not query:
-                return "search mode requires a query."
+                return "搜索模式需要查询。"
             return await _search_chunks(user_id, kb, query, path, tags, min(limit, MAX_SEARCH))
 
-        return f"Unknown mode: {mode}"
+        return f"未知模式：{mode}"

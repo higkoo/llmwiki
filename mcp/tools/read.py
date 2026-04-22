@@ -59,7 +59,7 @@ def _extract_sections(content: str, section_names: list[str]) -> str:
     matched = [text for name, text in sections if name.lower() in wanted]
 
     if not matched:
-        return f"No sections matching {section_names} found."
+        return f"未找到与 {section_names} 匹配的部分。"
     return "\n\n".join(matched)
 
 
@@ -69,7 +69,7 @@ async def _read_pages(
     max_page = doc["page_count"] or 1
     page_nums = parse_page_range(pages_str, max_page)
     if not page_nums:
-        return header + f"Invalid page range: {pages_str} (document has {max_page} pages)"
+        return header + f"无效的页面范围：{pages_str}（文档有 {max_page} 页）"
 
     user_id = str(doc["user_id"])
     doc_id = str(doc["id"])
@@ -82,7 +82,7 @@ async def _read_pages(
     )
 
     if not page_rows:
-        return header + f"No page data found for pages {pages_str}."
+        return header + f"未找到页面 {pages_str} 的数据。"
 
     content_blocks: list[TextContent | ImageContent] = [_text(header)]
     has_images = False
@@ -127,15 +127,15 @@ async def _read_spreadsheet_index(doc: dict, header: str) -> str:
     if not page_rows:
         return header + (doc["content"] or "(no data)")
 
-    lines = [header, "**Sheets:**\n"]
+    lines = [header, "**工作表：**\n"]
     for row in page_rows:
         elements = row["elements"]
         if isinstance(elements, str):
             elements = json.loads(elements)
         sheet_name = (elements or {}).get("sheet_name", f"Sheet {row['page']}")
         row_count = row["content"].count("\n") if row["content"] else 0
-        lines.append(f"  Page {row['page']}: **{sheet_name}** (~{row_count} rows)")
-    lines.append(f"\nUse `pages=\"1\"` to read a specific sheet.")
+        lines.append(f"  页面 {row['page']}: **{sheet_name}** (~{row_count} 行)")
+    lines.append(f"\n使用 `pages=\"1\"` 读取特定工作表。")
     return "\n".join(lines)
 
 
@@ -152,7 +152,7 @@ async def _read_batch(user_id: str, kb: dict, path: str) -> str:
     docs = [d for d in docs if glob_match(d["path"] + d["filename"], glob_pat)]
 
     if not docs:
-        return f"No documents matching `{path}` in {kb['slug']}."
+        return f"在 {kb['slug']} 中没有找到与 `{path}` 匹配的文档。"
 
     text_types = {"md", "txt", "csv", "html", "svg", "json", "xml"}
     parts = []
@@ -172,7 +172,7 @@ async def _read_batch(user_id: str, kb: dict, path: str) -> str:
         if ft in text_types and doc["content"]:
             content = doc["content"] or ""
             if len(content) > remaining:
-                content = content[:remaining] + "\n\n... (truncated)"
+                content = content[:remaining] + "\n\n... (已截断)"
                 truncated_docs += 1
             parts.append(f"### [{doc['path']}{doc['filename']}]({link})\n\n{content}")
             chars_used += len(content)
@@ -188,9 +188,9 @@ async def _read_batch(user_id: str, kb: dict, path: str) -> str:
             doc_chars = 0
             pages_included = 0
             for r in page_rows:
-                page_text = f"**— Page {r['page']} —**\n\n{r['content']}"
+                page_text = f"**— 第 {r['page']} 页 —**\n\n{r['content']}"
                 if doc_chars + len(page_text) > remaining:
-                    page_parts.append(page_text[:remaining - doc_chars] + "\n\n... (truncated)")
+                    page_parts.append(page_text[:remaining - doc_chars] + "\n\n... (已截断)")
                     truncated_docs += 1
                     pages_included += 1
                     doc_chars = remaining
@@ -203,18 +203,18 @@ async def _read_batch(user_id: str, kb: dict, path: str) -> str:
             remaining_pages = total_pages - pages_included
             suffix = ""
             if remaining_pages > 0:
-                suffix = f"\n\n*({remaining_pages} more pages — use `pages=\"{pages_included+1}-{total_pages}\"` to continue)*"
-            parts.append(f"### [{doc['path']}{doc['filename']}]({link}) ({total_pages} pages)\n\n" + "\n\n".join(page_parts) + suffix)
+                suffix = f"\n\n*({remaining_pages} 更多页面 — 使用 `pages=\"{pages_included+1}-{total_pages}\"` 继续)*"
+            parts.append(f"### [{doc['path']}{doc['filename']}]({link}) ({total_pages} 页)\n\n" + "\n\n".join(page_parts) + suffix)
             chars_used += doc_chars
 
         else:
             skipped_docs.append(doc)
 
-    header = f"**{len(parts)} document(s)** matching `{path}`"
+    header = f"**{len(parts)} 个文档** 匹配 `{path}`"
     if truncated_docs:
-        header += f" (some truncated to fit {MAX_BATCH_CHARS:,} char budget)"
+        header += f" (部分已截断以适应 {MAX_BATCH_CHARS:,} 字符限制)"
     if skipped_docs:
-        header += f"\n*{len(skipped_docs)} more document(s) beyond budget — read individually*"
+        header += f"\n*{len(skipped_docs)} 个更多文档超出限制 — 请单独读取*"
     header += "\n\n---\n\n"
 
     return header + "\n\n---\n\n".join(parts)
@@ -225,21 +225,21 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool(
         name="read",
         description=(
-            "Read document content from the knowledge vault.\n\n"
-            "Accepts a single file path OR a glob pattern to batch-read multiple files:\n"
-            "- `path=\"notes.md\"` — read one file\n"
-            "- `path=\"*.md\"` — read all markdown files in root\n"
-            "- `path=\"/wiki/**\"` — read all wiki pages\n"
-            "- `path=\"**/*.md\"` — read all markdown files everywhere\n\n"
-            "Batch reads are the PREFERRED way to read multiple documents at once — use them generously.\n"
-            "Glob reads sample the first few pages from each document (including PDFs) up to a 120k char budget. "
-            "This gives you a broad overview of an entire folder in one call. Read individual files for full content.\n\n"
-            "For PDFs and office docs, use `pages` to read specific page ranges (e.g. '1-50', '3', '10-30').\n"
-            "You can read up to 50+ pages in a single call — use wide ranges to avoid unnecessary round trips.\n"
-            "For spreadsheets, each sheet is a page (call without pages first to see sheet names).\n"
-            "Set `include_images=true` to include embedded images (e.g. figures in PDFs, standalone image files). "
-            "Off by default to save context — enable when you need to see charts, diagrams, or photos.\n\n"
-            "When reading sources to compile wiki pages, note the filename and page ranges for citation."
+            "从知识库中读取文档内容。\n\n"
+            "接受单个文件路径或 glob 模式来批量读取多个文件：\n"
+            "- `path=\"notes.md\"` — 读取一个文件\n"
+            "- `path=\"*.md\"` — 读取根目录中的所有 Markdown 文件\n"
+            "- `path=\"/wiki/**\"` — 读取所有维基页面\n"
+            "- `path=\"**/*.md\"` — 读取所有位置的 Markdown 文件\n\n"
+            "批量读取是一次读取多个文档的首选方式 — 请充分使用。\n"
+            "Glob 读取会从每个文档（包括 PDF）中采样前几页，最多 120k 字符。 "
+            "这样可以在一次调用中获得整个文件夹的概览。读取单个文件以获取完整内容。\n\n"
+            "对于 PDF 和办公文档，使用 `pages` 读取特定页面范围（例如 '1-50'、'3'、'10-30'）。\n"
+            "你可以在一次调用中读取多达 50+ 页 — 使用宽范围以避免不必要的往返。\n"
+            "对于电子表格，每个工作表是一个页面（先不带 pages 调用以查看工作表名称）。\n"
+            "设置 `include_images=true` 以包含嵌入的图像（例如 PDF 中的图表、独立图像文件）。 "
+            "默认关闭以节省上下文 — 当你需要查看图表、图表或照片时启用。\n\n"
+            "当读取资料以编译维基页面时，请注意文件名和页面范围以用于引用。"
         ),
         structured_output=False,
     )
@@ -255,7 +255,7 @@ def register(mcp: FastMCP) -> None:
 
         kb = await resolve_kb(user_id, knowledge_base)
         if not kb:
-            return f"Knowledge base '{knowledge_base}' not found."
+            return f"未找到知识库 '{knowledge_base}'。"
 
         is_glob = "*" in path or "?" in path
         if is_glob:
@@ -280,31 +280,31 @@ def register(mcp: FastMCP) -> None:
             )
 
         if not doc:
-            return f"Document '{path}' not found in {knowledge_base}."
+            return f"在 {knowledge_base} 中未找到文档 '{path}'。"
 
-        tags_str = ", ".join(doc["tags"]) if doc["tags"] else "none"
+        tags_str = ", ".join(doc["tags"]) if doc["tags"] else "无"
         link = deep_link(kb["slug"], doc["path"], doc["filename"])
         file_type = doc["file_type"] or ""
 
         header = (
             f"**{doc['title'] or doc['filename']}**\n"
-            f"Type: {file_type} | Tags: {tags_str} | Version: {doc['version']} | "
-            f"Updated: {doc['updated_at'].strftime('%Y-%m-%d') if doc['updated_at'] else 'unknown'}"
+            f"类型: {file_type} | 标签: {tags_str} | 版本: {doc['version']} | "
+            f"更新时间: {doc['updated_at'].strftime('%Y-%m-%d') if doc['updated_at'] else '未知'}"
         )
         if doc["page_count"]:
-            header += f" | Pages: {doc['page_count']}"
-        header += f"\n[View in Supavault]({link})\n\n---\n\n"
+            header += f" | 页数: {doc['page_count']}"
+        header += f"\n[在 LLM Wiki 中查看]({link})\n\n---\n\n"
 
         image_types = {"png", "jpg", "jpeg", "webp", "gif"}
         if file_type in image_types:
             if not include_images:
-                return header + "(Image file — set `include_images=true` to view)"
+                return header + "(图像文件 — 设置 `include_images=true` 以查看)"
             s3_key = f"{doc['user_id']}/{doc['id']}/source.{file_type}"
             img_bytes = await load_s3_bytes(s3_key)
             if img_bytes:
                 fmt = "jpeg" if file_type in ("jpg", "jpeg") else file_type
                 return [_text(header), _image(img_bytes, fmt)]
-            return header + "(Image could not be loaded from storage)"
+            return header + "(无法从存储加载图像)"
 
         has_pages = file_type in ("pdf", "pptx", "ppt", "docx", "doc", "xlsx", "xls", "csv")
         spreadsheet_types = {"xlsx", "xls", "csv"}

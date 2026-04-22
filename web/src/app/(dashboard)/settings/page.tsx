@@ -60,20 +60,20 @@ export default function SettingsPage() {
         >
           <ArrowLeft className="size-4" />
         </button>
-        <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
+        <h1 className="text-xl font-semibold tracking-tight">设置</h1>
       </div>
 
-      {/* Usage */}
+      {/* 用量 */}
       {usage && (
         <section>
-          <h2 className="text-base font-medium">Usage</h2>
+          <h2 className="text-base font-medium">使用情况</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {usage.document_count} document{usage.document_count !== 1 ? 's' : ''} uploaded
+            已上传 {usage.document_count} 个文档
           </p>
           <div className="mt-4 space-y-4">
             <div>
               <div className="flex items-center justify-between text-sm mb-1.5">
-                <span className="text-muted-foreground">Storage</span>
+                <span className="text-muted-foreground">存储</span>
                 <span className="font-mono text-xs">
                   {formatBytes(usage.total_storage_bytes)} / {formatBytes(usage.max_storage_bytes)}
                 </span>
@@ -94,7 +94,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <div className="flex items-center justify-between text-sm mb-1.5">
-                <span className="text-muted-foreground">OCR Pages</span>
+                <span className="text-muted-foreground">OCR 页面</span>
                 <span className="font-mono text-xs">
                   {usage.total_pages.toLocaleString()} / {usage.max_pages.toLocaleString()}
                 </span>
@@ -119,11 +119,11 @@ export default function SettingsPage() {
 
       {usage && <div className="h-px bg-border my-8" />}
 
-      {/* MCP Config */}
+      {/* MCP 配置 */}
       <section>
-        <h2 className="text-base font-medium">Connect via OAuth</h2>
+        <h2 className="text-base font-medium">通过 OAuth 连接</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Add this configuration to your MCP client. On first connection, it should prompt you to sign in with Supabase.
+          将此配置添加到你的 MCP 客户端。首次连接时，它会提示你使用 Supabase 登录。
         </p>
         <div className="relative mt-4">
           <pre className="rounded-lg bg-muted border border-border p-4 text-sm font-mono overflow-x-auto text-foreground">
@@ -138,11 +138,11 @@ export default function SettingsPage() {
                 : 'bg-background border border-border text-muted-foreground hover:text-foreground hover:bg-accent'
             )}
           >
-            {configCopied ? <><Check size={12} />Copied</> : <><Copy size={12} />Copy</>}
+            {configCopied ? <><Check size={12} />已复制</> : <><Copy size={12} />复制</>}
           </button>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          MCP URL:
+          MCP URL：
           {' '}
           <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">{MCP_URL}</code>
         </p>

@@ -1,101 +1,101 @@
 # LLM Wiki
 
-[![Live Demo](https://img.shields.io/badge/demo-llmwiki.app-blue)](https://llmwiki.app)
-[![License](https://img.shields.io/badge/license-Apache%202.0-green)](https://opensource.org/licenses/Apache-2.0)
+[![在线演示](https://img.shields.io/badge/demo-llmwiki.app-blue)](https://llmwiki.app)
+[![许可证](https://img.shields.io/badge/license-Apache%202.0-green)](https://opensource.org/licenses/Apache-2.0)
 
-Free, open-source implementation of [Karpathy's LLM Wiki](https://x.com/karpathy/status/2039805659525644595) ([spec](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)). Available at [llmwiki.app](https://llmwiki.app).
+[Karpathy's LLM Wiki](https://x.com/karpathy/status/2039805659525644595) ([规范](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f))的免费开源实现。可在 [llmwiki.app](https://llmwiki.app) 使用。
 
-1. **Upload sources** — PDFs, articles, notes, office docs. Review them in a full document viewer.
-2. **Connect Claude** — via MCP. It reads your sources, writes wiki pages, maintains cross-references and citations.
-3. **The wiki compounds** — every source you add and every question you ask makes it richer. Knowledge is built up, not re-derived.
+1. **上传资料** — PDF、文章、笔记、办公文档。在完整的文档查看器中查看它们。
+2. **连接 Claude** — 通过 MCP。它读取你的资料，编写维基页面，维护交叉引用和引用。
+3. **维基不断丰富** — 你添加的每一个资料和提出的每一个问题都让它变得更加丰富。知识是累积的，而不是重新推导的。
 
-![LLM Wiki — a compiled wiki page with citations and table of contents](wiki-page.png)
+![LLM Wiki — 带有引用和目录的编译维基页面](wiki-page.png)
 
-### Three Layers
+### 三层结构
 
-| Layer | Description |
+| 层级 | 描述 |
 |-------|-------------|
-| **Raw Sources** | PDFs, articles, notes, transcripts. Your immutable source of truth. The LLM reads them but never modifies them. |
-| **The Wiki** | LLM-generated markdown pages — summaries, entity pages, cross-references, mermaid diagrams, tables. The LLM owns this layer. You read it; the LLM writes it. |
-| **The Tools** | Search, read, and write. Claude connects via MCP and orchestrates the rest. |
+| **原始资料** | PDF、文章、笔记、 transcripts。你的不可变事实来源。LLM 读取它们但从不修改它们。 |
+| **维基** | LLM 生成的 Markdown 页面 — 摘要、实体页面、交叉引用、Mermaid 图表、表格。LLM 拥有这一层。你阅读它；LLM 编写它。 |
+| **工具** | 搜索、读取和写入。Claude 通过 MCP 连接并协调其他操作。 |
 
-### Core Operations
+### 核心操作
 
-LLM Wiki ships an **MCP server** that Claude.ai connects to directly. Once connected, Claude has tools to search, read, write, and delete across your entire knowledge vault. All operations below happen through Claude — you talk to it, it maintains the wiki.
+LLM Wiki 内置了一个 **MCP 服务器**，Claude.ai 可以直接连接到它。连接后，Claude 拥有在你的整个知识库中搜索、读取、写入和删除的工具。以下所有操作都通过 Claude 进行 — 你与它交谈，它维护维基。
 
-**Ingest** — Drop a source in. Claude reads it, writes a summary, updates entity and concept pages across the wiki, and flags anything that contradicts existing knowledge. A single source might touch 10-15 wiki pages.
+**摄取** — 放入一个资料。Claude 读取它，编写摘要，更新维基中的实体和概念页面，并标记任何与现有知识相矛盾的内容。一个资料可能会涉及 10-15 个维基页面。
 
-**Query** — Ask complex questions against the compiled wiki. Knowledge is already synthesized — not re-derived from raw chunks each time. Good answers get filed back as new pages, so your explorations compound.
+**查询** — 针对编译后的维基提出复杂问题。知识已经被合成 — 不是每次都从原始块重新推导。好的答案会作为新页面被归档，因此你的探索会不断累积。
 
-**Lint** — Run health checks. Find inconsistent data, stale claims, orphan pages, missing cross-references. Claude suggests new questions to investigate and new sources to look for.
+**检查** — 运行健康检查。查找不一致的数据、过时的声明、孤立页面、缺失的交叉引用。Claude 会建议要研究的新问题和要寻找的新资料。
 
 ---
 
-## Architecture
+## 架构
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │   Next.js   │────▶│   FastAPI   │────▶│  Supabase   │
-│   Frontend  │     │   Backend   │     │  (Postgres) │
+│   前端      │     │   后端      │     │  (Postgres) │
 └─────────────┘     └──────┬──────┘     └─────────────┘
                            │
                     ┌──────┴──────┐
-                    │  MCP Server │◀──── Claude
+                    │  MCP 服务器 │◀──── Claude
                     └─────────────┘
 ```
 
-| Component | Stack | Responsibilities |
+| 组件 | 技术栈 | 职责 |
 |-----------|-------|------------------|
-| **Web** (`web/`) | Next.js 16, React 19, Tailwind, Radix UI | Dashboard, PDF/HTML viewer, wiki renderer, onboarding |
-| **API** (`api/`) | FastAPI, asyncpg, aioboto3 | Auth, uploads (TUS), document processing, OCR (Mistral) |
-| **Converter** (`converter/`) | FastAPI, LibreOffice | Isolated office-to-PDF conversion (non-root, zero AWS creds) |
-| **MCP** (`mcp/`) | MCP SDK, Supabase OAuth | Tools for Claude: `guide`, `search`, `read`, `write`, `delete` |
-| **Database** | Supabase (Postgres + RLS + PGroonga) | Documents, chunks, knowledge bases, users |
-| **Storage** | S3-compatible | Raw uploads, tagged HTML, extracted images |
+| **Web** (`web/`) | Next.js 16, React 19, Tailwind, Radix UI | 仪表板、PDF/HTML 查看器、维基渲染器、引导流程 |
+| **API** (`api/`) | FastAPI, asyncpg, aioboto3 | 认证、上传 (TUS)、文档处理、OCR (Mistral) |
+| **Converter** (`converter/`) | FastAPI, LibreOffice | 隔离的办公文档到 PDF 转换（非 root，零 AWS 凭证） |
+| **MCP** (`mcp/`) | MCP SDK, Supabase OAuth | Claude 的工具：`guide`、`search`、`read`、`write`、`delete` |
+| **数据库** | Supabase (Postgres + RLS + PGroonga) | 文档、块、知识库、用户 |
+| **存储** | 兼容 S3 的存储 | 原始上传、标记的 HTML、提取的图像 |
 
 ---
 
-## MCP Tools
+## MCP 工具
 
-Once connected, Claude has full access to your knowledge vault:
+连接后，Claude 可以完全访问你的知识库：
 
-| Tool | Description |
+| 工具 | 描述 |
 |------|-------------|
-| `guide` | Explains how the wiki works and lists available knowledge bases |
-| `search` | Browse files (`list`) or keyword search with PGroonga ranking (`search`) |
-| `read` | Read documents — PDFs with page ranges, inline images, glob batch reads |
-| `write` | Create wiki pages, edit with `str_replace`, append. SVG and CSV asset support |
-| `delete` | Archive documents by path or glob pattern |
+| `guide` | 解释维基的工作原理并列出可用的知识库 |
+| `search` | 浏览文件 (`list`) 或使用 PGroonga 排名进行关键字搜索 (`search`) |
+| `read` | 读取文档 — 带有页面范围的 PDF、内联图像、全局批量读取 |
+| `write` | 创建维基页面，使用 `str_replace` 编辑，追加。支持 SVG 和 CSV 资产 |
+| `delete` | 按路径或全局模式归档文档 |
 
 ---
 
-## Getting Started
+## 开始使用
 
-The fastest way to try LLM Wiki:
+尝试 LLM Wiki 的最快方法：
 
-1. **Sign up** at [llmwiki.app](https://llmwiki.app) and create a knowledge base
-2. **Upload sources** — drop in PDFs, notes, articles
-3. **Connect Claude** — go to Settings, copy the MCP config, add it as a connector in Claude.ai
-4. **Start building** — tell Claude to read your sources and compile the wiki
+1. 在 [llmwiki.app](https://llmwiki.app) **注册**并创建知识库
+2. **上传资料** — 放入 PDF、笔记、文章
+3. **连接 Claude** — 进入设置，复制 MCP 配置，在 Claude.ai 中添加为连接器
+4. **开始构建** — 告诉 Claude 读取你的资料并编译维基
 
-That's it. No local setup required.
+就是这样。无需本地设置。
 
-### Self-Hosting
+### 自托管
 
-#### Prerequisites
+#### 先决条件
 
 - Python 3.11+
 - Node.js 20+
-- A [Supabase](https://supabase.com) project (or local Docker setup)
-- An S3-compatible bucket (needed for file uploads)
+- 一个 [Supabase](https://supabase.com) 项目（或本地 Docker 设置）
+- 一个兼容 S3 的存储桶（需要用于文件上传）
 
-#### 1. Database
+#### 1. 数据库
 
 ```bash
 psql $DATABASE_URL -f supabase/migrations/001_initial.sql
 ```
 
-Or use local Docker: `docker compose up -d`
+或使用本地 Docker：`docker compose up -d`
 
 #### 2. API
 
@@ -103,11 +103,11 @@ Or use local Docker: `docker compose up -d`
 cd api
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp ../.env.example .env  # edit with your credentials
+cp ../.env.example .env  # 编辑你的凭证
 uvicorn main:app --reload --port 8000
 ```
 
-#### 3. MCP Server
+#### 3. MCP 服务器
 
 ```bash
 cd mcp
@@ -125,27 +125,27 @@ cp .env.example .env.local
 npm run dev
 ```
 
-#### 5. Connect Claude
+#### 5. 连接 Claude
 
-1. Open **Settings** > **Connectors** in Claude
-2. Add a custom connector pointing to `http://localhost:8080/mcp`
-3. Sign in with your Supabase account when prompted
+1. 在 Claude 中打开 **设置** > **连接器**
+2. 添加指向 `http://localhost:8080/mcp` 的自定义连接器
+3. 出现提示时使用你的 Supabase 账户登录
 
-#### Environment Variables
+#### 环境变量
 
 **API** (`api/.env`)
 
 ```
 DATABASE_URL=postgresql://...
 SUPABASE_URL=https://your-ref.supabase.co
-SUPABASE_JWT_SECRET=          # optional, for legacy HS256 projects
-MISTRAL_API_KEY=              # for PDF OCR
+SUPABASE_JWT_SECRET=          # 可选，用于旧版 HS256 项目
+MISTRAL_API_KEY=              # 用于 PDF OCR
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
 AWS_REGION=us-east-1
 S3_BUCKET=your-bucket
 APP_URL=http://localhost:3000
-CONVERTER_URL=               # optional, URL of isolated converter service
+CONVERTER_URL=               # 可选，隔离的转换器服务 URL
 ```
 
 **Web** (`web/.env.local`)
@@ -159,14 +159,14 @@ NEXT_PUBLIC_MCP_URL=http://localhost:8080/mcp
 
 ---
 
-## Why This Works
+## 为什么这有效
 
-The tedious part of maintaining a knowledge base is not the reading or the thinking — it's the bookkeeping. Updating cross-references, keeping summaries current, noting when new data contradicts old claims, maintaining consistency across dozens of pages.
+维护知识库的繁琐部分不是阅读或思考 — 而是记录工作。更新交叉引用、保持摘要最新、注意新数据何时与旧声明相矛盾、在数十页中保持一致性。
 
-Humans abandon personal wikis because the maintenance burden grows faster than the value. LLMs don't get bored, don't forget to update a cross-reference, and can touch 15 files in one pass. The wiki stays maintained because the cost of maintenance drops to near zero.
+人类放弃个人维基是因为维护负担增长快于价值。LLM 不会感到无聊，不会忘记更新交叉引用，并且可以一次处理 15 个文件。维基保持维护是因为维护成本几乎降至零。
 
-The human's job is to curate sources, direct the analysis, ask good questions, and think about what it all means. The LLM's job is everything else.
+人类的工作是策展资料、指导分析、提出好问题并思考这一切意味着什么。LLM 的工作是其他所有事情。
 
-## License
+## 许可证
 
 Apache 2.0

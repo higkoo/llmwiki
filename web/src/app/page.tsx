@@ -10,14 +10,14 @@ import { ArrowRight, BookOpen, FileText, PenTool, Search, GitBranch } from 'luci
 const ease: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
 const WIKI_TREE = [
-  { label: 'Overview', active: true, depth: 0 },
-  { label: 'Concepts', depth: 0, folder: true },
-  { label: 'Attention Mechanisms', depth: 1 },
-  { label: 'Scaling Laws', depth: 1 },
-  { label: 'Entities', depth: 0, folder: true },
-  { label: 'Transformer Architecture', depth: 1 },
-  { label: 'Sources', depth: 0, folder: true },
-  { label: 'Log', depth: 0 },
+  { label: '概览', active: true, depth: 0 },
+  { label: '概念', depth: 0, folder: true },
+  { label: '注意力机制', depth: 1 },
+  { label: '缩放法则', depth: 1 },
+  { label: '实体', depth: 0, folder: true },
+  { label: 'Transformer 架构', depth: 1 },
+  { label: '资料', depth: 0, folder: true },
+  { label: '日志', depth: 0 },
 ]
 
 export default function LandingPage() {
@@ -50,13 +50,13 @@ export default function LandingPage() {
             href="/login"
             className="text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
-            Sign in
+            登录
           </Link>
           <Link
             href="/signup"
             className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-foreground text-background px-4 py-1.5 text-sm font-medium hover:opacity-90 transition-opacity"
           >
-            Get started
+            开始使用
           </Link>
         </div>
       </nav>
@@ -70,12 +70,12 @@ export default function LandingPage() {
             transition={{ duration: 0.8, ease }}
           >
             <p className="text-sm text-muted-foreground mb-4">
-              Open-source implementation of{' '}
+              Karpathy's LLM Wiki 的开源实现
               <Link
                 href="https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f"
                 className="text-foreground underline underline-offset-2 decoration-foreground/30 hover:decoration-foreground transition-colors"
               >
-                Karpathy&apos;s LLM&nbsp;Wiki
+                &nbsp;规范
               </Link>
             </p>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight leading-[1.05]">
@@ -89,7 +89,7 @@ export default function LandingPage() {
             transition={{ duration: 0.8, delay: 0.12, ease }}
             className="mt-6 text-base sm:text-lg text-muted-foreground max-w-md mx-auto leading-relaxed"
           >
-            Your LLM compiles and maintains a structured wiki from raw&nbsp;sources.
+            你的 LLM 从原始资料中编译并维护一个结构化的维基。
           </motion.p>
 
           <motion.div
@@ -102,7 +102,7 @@ export default function LandingPage() {
               href="/signup"
               className="inline-flex items-center gap-2 rounded-full bg-foreground text-background px-6 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity"
             >
-              Get started
+              开始使用
               <ArrowRight className="size-3.5 opacity-60" />
             </Link>
             <Link
@@ -143,7 +143,7 @@ export default function LandingPage() {
               <div className="w-52 shrink-0 border-r border-border p-3 hidden sm:block">
                 <div className="flex items-center gap-2 px-2 py-1.5 mb-2">
                   <Search className="size-3 text-muted-foreground/30" />
-                  <span className="text-xs text-muted-foreground/30">Search wiki...</span>
+                  <span className="text-xs text-muted-foreground/30">搜索维基...</span>
                 </div>
                 <div className="space-y-0.5">
                   {WIKI_TREE.map((item, i) => (
@@ -170,25 +170,25 @@ export default function LandingPage() {
               {/* Content */}
               <div className="flex-1 p-8 sm:p-10">
                 <div className="max-w-lg">
-                  <h2 className="text-xl font-semibold tracking-tight mb-1">Overview</h2>
+                  <h2 className="text-xl font-semibold tracking-tight mb-1">概览</h2>
                   <p className="text-xs text-muted-foreground mb-6">
-                    12 sources &middot; Last updated 2 hours ago
+                    12 个资料 · 最后更新于 2 小时前
                   </p>
                   <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-                    This wiki tracks research on transformer architectures and their scaling properties.
-                    It synthesizes findings from <span className="font-medium text-foreground">12 sources</span> across 47 pages.
+                    本维基追踪关于 transformer 架构及其缩放特性的研究。
+                    它综合了来自 <span className="font-medium text-foreground">12 个资料</span> 的发现，跨越 47 个页面。
                   </p>
-                  <h3 className="text-sm font-semibold mt-5 mb-2">Key Findings</h3>
+                  <h3 className="text-sm font-semibold mt-5 mb-2">关键发现</h3>
                   <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-                    The relationship between model size and performance follows predictable{' '}
-                    <span className="font-medium text-foreground">scaling laws</span> &mdash;
-                    loss decreases as a power law of compute, dataset size, and parameter count.
+                    模型大小与性能之间的关系遵循可预测的{' '}
+                    <span className="font-medium text-foreground">缩放法则</span> —
+                    损失随着计算、数据集大小和参数数量的幂律而减少。
                   </p>
-                  <h3 className="text-sm font-semibold mt-5 mb-2">Recent Updates</h3>
+                  <h3 className="text-sm font-semibold mt-5 mb-2">最近更新</h3>
                   <ul className="space-y-1 ml-4">
-                    <li className="text-sm text-muted-foreground list-disc">Added analysis of sparse attention variants</li>
-                    <li className="text-sm text-muted-foreground list-disc">Updated scaling laws with new benchmarks</li>
-                    <li className="text-sm text-muted-foreground list-disc">Flagged contradiction between Chen et al. and Wei et al.</li>
+                    <li className="text-sm text-muted-foreground list-disc">添加了稀疏注意力变体的分析</li>
+                    <li className="text-sm text-muted-foreground list-disc">使用新基准更新了缩放法则</li>
+                    <li className="text-sm text-muted-foreground list-disc">标记了 Chen 等人与 Wei 等人之间的矛盾</li>
                   </ul>
                 </div>
               </div>
@@ -210,30 +210,31 @@ export default function LandingPage() {
             transition={{ duration: 0.6 }}
             className="text-center mb-14"
           >
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Three layers</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">三层结构</h2>
             <p className="mt-3 text-muted-foreground max-w-md mx-auto">
-              You rarely ever write the wiki yourself &mdash; the wiki is the domain of the LLM.
+              你很少需要自己编写维基 — 维基是 LLM 的领域。
             </p>
           </motion.div>
 
           <div className="grid sm:grid-cols-3 gap-6">
-            {[
-              {
-                icon: FileText,
-                title: 'Raw Sources',
-                body: 'Articles, papers, notes, transcripts. Your immutable source of truth. The LLM reads from them but never modifies them.',
-              },
-              {
-                icon: BookOpen,
-                title: 'The Wiki',
-                body: 'LLM-generated markdown pages with summaries, entity pages, and cross-references. The LLM owns this layer. You read it; the LLM writes it.',
-              },
-              {
-                icon: PenTool,
-                title: 'The Schema',
-                body: 'A config file that tells the LLM how the wiki is structured, what conventions to follow, and what workflows to run on ingest.',
-              },
-            ].map((item, i) => (
+            {
+              [
+                {
+                  icon: FileText,
+                  title: '原始资料',
+                  body: '文章、论文、笔记、transcripts。你的不可变事实来源。LLM 从中读取但从不修改它们。',
+                },
+                {
+                  icon: BookOpen,
+                  title: '维基',
+                  body: 'LLM 生成的 Markdown 页面，包含摘要、实体页面和交叉引用。LLM 拥有这一层。你阅读它；LLM 编写它。',
+                },
+                {
+                  icon: PenTool,
+                  title: '架构',
+                  body: '一个配置文件，告诉 LLM 维基的结构、要遵循的约定以及在摄取时要运行的工作流程。',
+                },
+              ].map((item, i) => (
               <motion.div
                 key={item.title}
                 initial={{ opacity: 0, y: 20 }}
@@ -264,27 +265,28 @@ export default function LandingPage() {
             transition={{ duration: 0.6 }}
             className="text-center mb-14"
           >
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">How it works</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">工作原理</h2>
           </motion.div>
 
           <div className="grid sm:grid-cols-3 gap-10 sm:gap-8">
-            {[
-              {
-                step: '01',
-                title: 'Ingest',
-                body: 'Drop a source into raw/. The LLM reads it, writes a summary, updates entity and concept pages across the wiki, and flags anything that contradicts existing knowledge. A single source might touch 10–15 wiki pages.',
-              },
-              {
-                step: '02',
-                title: 'Query',
-                body: 'Ask complex questions against the compiled wiki. Knowledge is already synthesized — not re-derived from raw chunks each time. Good answers get filed back as new pages, so your explorations compound.',
-              },
-              {
-                step: '03',
-                title: 'Lint',
-                body: 'Run health checks over the wiki. Find inconsistent data, stale claims, orphan pages, missing cross-references. The LLM suggests new questions to ask and new sources to look for.',
-              },
-            ].map((item, i) => (
+            {
+              [
+                {
+                  step: '01',
+                  title: '摄取',
+                  body: '将资料放入 raw/ 目录。LLM 读取它，编写摘要，更新维基中的实体和概念页面，并标记任何与现有知识相矛盾的内容。一个资料可能会涉及 10-15 个维基页面。',
+                },
+                {
+                  step: '02',
+                  title: '查询',
+                  body: '针对编译后的维基提出复杂问题。知识已经被合成 — 不是每次都从原始块重新推导。好的答案会作为新页面被归档，因此你的探索会不断累积。',
+                },
+                {
+                  step: '03',
+                  title: '检查',
+                  body: '对维基运行健康检查。查找不一致的数据、过时的声明、孤立页面、缺失的交叉引用。LLM 会建议要问的新问题和要寻找的新资料。',
+                },
+              ].map((item, i) => (
               <motion.div
                 key={item.step}
                 initial={{ opacity: 0, y: 20 }}
@@ -314,7 +316,7 @@ export default function LandingPage() {
           className="max-w-2xl mx-auto text-center"
         >
           <blockquote className="text-lg sm:text-xl leading-relaxed text-foreground/80 italic">
-            &ldquo;The tedious part of maintaining a knowledge base is not the reading or the thinking &mdash; it&apos;s the bookkeeping. LLMs don&apos;t get bored, don&apos;t forget to update a cross-reference, and can touch 15 files in one pass.&rdquo;
+            &ldquo;维护知识库的繁琐部分不是阅读或思考 — 而是记录工作。LLM 不会感到无聊，不会忘记更新交叉引用，并且可以一次处理 15 个文件。&rdquo;
           </blockquote>
           <p className="mt-5 text-sm text-muted-foreground">
             Andrej Karpathy
@@ -334,24 +336,24 @@ export default function LandingPage() {
           transition={{ duration: 0.6 }}
           className="max-w-md mx-auto text-center"
         >
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4">Start building your wiki</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4">开始构建你的维基</h2>
           <p className="text-muted-foreground mb-8">
-            An incredible product instead of a hacky collection of scripts.
+            一个令人难以置信的产品，而不是一堆杂乱的脚本。
           </p>
           <Link
             href="/signup"
             className="inline-flex items-center gap-2 rounded-full bg-foreground text-background px-7 py-3 text-sm font-medium hover:opacity-90 transition-opacity"
           >
-            Get started free
+            免费开始使用
             <ArrowRight className="size-3.5 opacity-60" />
           </Link>
         </motion.div>
       </section>
 
-      {/* Footer */}
+      {/* 页脚 */}
       <footer className="border-t border-border px-6 lg:px-10 py-6 flex items-center justify-between text-xs text-muted-foreground/50">
         <span>LLM Wiki</span>
-        <span>Free &amp; open source &middot; Apache 2.0</span>
+        <span>免费 &amp; 开源 &middot; Apache 2.0</span>
       </footer>
     </div>
   )
