@@ -138,7 +138,7 @@ export default function SettingsPage() {
                 : 'bg-background border border-border text-muted-foreground hover:text-foreground hover:bg-accent'
             )}
           >
-            {configCopied ? <><Check size={12} />已复制</> : <><Copy size={12} />复制</>}
+            {configCopied ? <><Check size={12} /> 已复制</> : <><Copy size={12} /> 复制</>}
           </button>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
